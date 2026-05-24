@@ -63,7 +63,7 @@ export function utmLabel(row: Record<string, unknown>) {
 }
 
 export function skuLabel(row: Record<string, unknown>) {
-  const sku = String(row["product_performance.sku"] ?? "")
-  const title = String(row["product_performance.product_title"] ?? "")
+  const sku = String(row["shopify_order_line_items.sku"] ?? row["product_performance.sku"] ?? "")
+  const title = String(row["shopify_order_line_items.product_title"] ?? row["product_performance.product_title"] ?? "")
   return title ? `${sku} · ${title}` : sku
 }

@@ -124,9 +124,9 @@ export function PnlDashboard({
         </ChartShell>
       )}
 
-      <div className="rounded-xl bg-insight-canvas border border-insight-border px-4 py-3">
+      <div className="rounded-xl bg-insight-canvas dark:bg-night-900 border border-insight-border dark:border-night-800 px-4 py-3">
         <InsightDataTable rows={normalized} title="Full monthly table" />
-        <p className="text-xs text-stone-500 font-sans mt-2 border-t border-insight-border pt-2">
+        <p className="text-xs text-stone-500 dark:text-night-500 font-sans mt-2 border-t border-insight-border dark:border-night-800 pt-2">
           {DERIVED_FORMULA_FOOTER}
         </p>
       </div>

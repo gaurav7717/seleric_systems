@@ -22,8 +22,8 @@ function KpiTile({
   className?: string
 }) {
   return (
-    <div className="rounded-xl bg-white border border-insight-border px-4 py-3 flex flex-col gap-1 min-w-[140px] flex-1">
-      <span className="text-[11px] text-stone-500 font-sans leading-tight">{label}</span>
+    <div className="rounded-xl bg-white dark:bg-night-875 border border-insight-border dark:border-night-800 px-4 py-3 flex flex-col gap-1 min-w-[140px] flex-1">
+      <span className="text-[11px] text-stone-500 dark:text-night-500 font-sans leading-tight">{label}</span>
       <span className={`text-xl font-semibold font-serif ${className}`}>{value}</span>
     </div>
   )
@@ -59,7 +59,7 @@ export function buildKpiTiles(summary: PeriodSummary, seriesRows: CubeRow[]) {
     tiles.push({
       label: "Period revenue (ex-GST)",
       value: formatSummaryValue(revenue.key, revenue.val),
-      className: "text-stone-900",
+      className: "text-stone-900 dark:text-night-50",
     })
   }
   if (spend) {
@@ -88,7 +88,7 @@ export function buildKpiTiles(summary: PeriodSummary, seriesRows: CubeRow[]) {
     tiles.push({
       label: "Total orders",
       value: formatCount(orders.val),
-      className: "text-stone-900",
+      className: "text-stone-900 dark:text-night-50",
     })
   }
 
@@ -99,7 +99,7 @@ export function buildKpiTiles(summary: PeriodSummary, seriesRows: CubeRow[]) {
     tiles.push({
       label: "Blended AOV (approx)",
       value: formatInr(aov),
-      className: "text-stone-900",
+      className: "text-stone-900 dark:text-night-50",
     })
   }
 
@@ -116,7 +116,7 @@ export function buildKpiTiles(summary: PeriodSummary, seriesRows: CubeRow[]) {
     tiles.push({
       label: "Gross margin (avg)",
       value: `${margin.toFixed(1)}%`,
-      className: "text-stone-900",
+      className: "text-stone-900 dark:text-night-50",
     })
   }
 
@@ -124,7 +124,7 @@ export function buildKpiTiles(summary: PeriodSummary, seriesRows: CubeRow[]) {
     tiles.push({
       label: "Estimated LTV (1yr horizon)",
       value: formatInr(ltv),
-      className: "text-stone-900",
+      className: "text-stone-900 dark:text-night-50",
     })
   }
 
@@ -167,7 +167,7 @@ export function KpiSummaryGrid({
   if (!tiles.length) return null
 
   return (
-    <div className="rounded-xl bg-insight-canvas border border-insight-border p-4 my-3">
+    <div className="rounded-xl bg-insight-canvas dark:bg-night-900 border border-insight-border dark:border-night-800 p-4 my-3">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {tiles.map((t) => (
           <KpiTile key={t.label} label={t.label} value={t.value} className={t.className} />

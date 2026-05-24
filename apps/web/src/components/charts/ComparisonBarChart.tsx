@@ -11,6 +11,7 @@ import {
 } from "recharts"
 import { CHART_COLORS, fmtCurrency } from "./format"
 import type { NamedValue } from "@/lib/dashboard/transforms"
+import { useChartTheme } from "@/hooks/useChartTheme"
 
 interface Props {
   items: NamedValue[]
@@ -20,15 +21,16 @@ interface Props {
 export function ComparisonBarChart({ items }: Props) {
   if (!items.length) return <p className="text-sm text-slate-500">No data for this period.</p>
 
+  const ct = useChartTheme()
   const data = items.map((item) => ({ name: item.name, value: item.value }))
 
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
         <XAxis
           dataKey="name"
-          tick={{ fill: "#94a3b8", fontSize: 10 }}
+          tick={{ fill: ct.tick, fontSize: 10 }}
           tickLine={false}
           axisLine={false}
           interval={0}
@@ -38,14 +40,14 @@ export function ComparisonBarChart({ items }: Props) {
         />
         <YAxis
           tickFormatter={fmtCurrency}
-          tick={{ fill: "#94a3b8", fontSize: 11 }}
+          tick={{ fill: ct.tick, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           width={62}
         />
         <Tooltip
           formatter={(v: number) => fmtCurrency(v)}
-          contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+          contentStyle={ct.tooltip}
         />
         <Bar dataKey="value" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} name="Amount" />
       </BarChart>
@@ -80,7 +82,7 @@ export function HourlyBarChart({
             style={{ height: `${Math.max((d.value / max) * 160, 4)}px` }}
             title={`${d.hour}: ${fmtCurrency(d.value)}`}
           />
-          <span className="text-[9px] text-slate-600 truncate w-full text-center">{d.hour}</span>
+          <span className="text-[9px] text-slate-600 dark:text-night-500 truncate w-full text-center">{d.hour}</span>
         </div>
       ))}
     </div>

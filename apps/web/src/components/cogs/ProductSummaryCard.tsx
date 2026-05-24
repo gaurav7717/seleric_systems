@@ -22,10 +22,10 @@ export function ProductSummaryCard({
           : "—"
 
     return (
-      <div className="rounded-xl border border-insight-border bg-white p-3 shadow-sm">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+      <div className="rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 p-3 shadow-sm dark:shadow-none">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-night-500">
           Variant data — {variant.sku}
-          <span className="ml-2 normal-case text-stone-400">
+          <span className="ml-2 normal-case text-stone-400 dark:text-night-600">
             ({(variant.qtyShare * 100).toFixed(0)}% of {product.productBase} qty)
           </span>
         </p>
@@ -60,7 +60,7 @@ export function ProductSummaryCard({
           />
         </div>
         {product.matchedCampaigns.length > 0 && (
-          <p className="mt-2 truncate text-[10px] text-stone-400">
+          <p className="mt-2 truncate text-[10px] text-stone-400 dark:text-night-600">
             Campaigns: {product.matchedCampaigns.slice(0, 3).join(" · ")}
             {product.matchedCampaigns.length > 3 && ` +${product.matchedCampaigns.length - 3}`}
           </p>
@@ -77,8 +77,8 @@ export function ProductSummaryCard({
         : "—"
 
   return (
-    <div className="rounded-xl border border-insight-border bg-white p-3 shadow-sm">
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+    <div className="rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 p-3 shadow-sm dark:shadow-none">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-night-500">
         Period data — {product.productBase}
       </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -114,7 +114,7 @@ export function ProductSummaryCard({
         />
       </div>
       {product.matchedCampaigns.length > 0 && (
-        <p className="mt-2 truncate text-[10px] text-stone-400">
+        <p className="mt-2 truncate text-[10px] text-stone-400 dark:text-night-600">
           {product.matchedCampaigns.slice(0, 3).join(" · ")}
           {product.matchedCampaigns.length > 3 && ` +${product.matchedCampaigns.length - 3}`}
         </p>

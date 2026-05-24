@@ -1,11 +1,11 @@
 "use client"
 
-import { fmtCount, fmtCurrency } from "./format"
+import { fmtCount, fmtCurrency, measureFormat, type MeasureFormat } from "./format"
 
 interface MetricDef {
   label: string
   key: string
-  format?: "currency" | "count" | "ratio"
+  format?: MeasureFormat
 }
 
 interface Props {
@@ -14,11 +14,11 @@ interface Props {
   metrics: MetricDef[]
 }
 
-function fmt(v: unknown, format: "currency" | "count" | "ratio"): string {
+function fmt(v: unknown, format: MeasureFormat): string {
   const n = Number(v)
   if (!isFinite(n)) return "—"
   if (format === "count") return fmtCount(n)
-  if (format === "ratio") return n.toFixed(2)
+  if (format === "ratio") return `${n.toFixed(2)}x`
   return fmtCurrency(n)
 }
 
@@ -43,16 +43,22 @@ function KpiTile({
   invert?: boolean
 }) {
   const trendPositive = invert ? (trend ?? 0) < 0 : (trend ?? 0) > 0
-  const trendColor = trend === undefined ? "" : trendPositive ? "text-emerald-400" : "text-red-400"
+  const trendColor =
+    trend === undefined
+      ? ""
+      : trendPositive
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-red-600 dark:text-red-400"
   const trendSign = (trend ?? 0) > 0 ? "+" : ""
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 flex flex-col gap-1 min-w-[130px]">
-      <span className="text-xs text-slate-500 uppercase tracking-wide">{label}</span>
-      <span className="text-lg font-semibold text-slate-100">{value}</span>
-      {sub && <span className="text-xs text-slate-400">{sub}</span>}
+    <div className="rounded-lg border border-stone-200 dark:border-night-800 bg-stone-50 dark:bg-night-850 px-4 py-3 flex flex-col gap-1 min-w-[130px]">
+      <span className="text-xs text-stone-500 dark:text-night-500 uppercase tracking-wide">{label}</span>
+      <span className="text-lg font-semibold text-stone-900 dark:text-night-50">{value}</span>
+      {sub && <span className="text-xs text-stone-500 dark:text-night-500">{sub}</span>}
       {trend !== undefined && (
         <span className={`text-xs font-medium ${trendColor}`}>
-          {trendSign}{trend.toFixed(1)}% vs prior
+          {trendSign}
+          {trend.toFixed(1)}% vs prior
         </span>
       )}
     </div>
@@ -62,7 +68,8 @@ function KpiTile({
 export function PeriodCompareKpis({ current, prior, metrics }: Props) {
   return (
     <div className="flex flex-wrap gap-3">
-      {metrics.map(({ label, key, format = "currency" }) => {
+      {metrics.map(({ label, key, format }) => {
+        const resolvedFormat = format ?? measureFormat(key)
         let currVal: unknown = current[key]
         let prevVal: unknown = prior[key]
         if (key === "cpa") {
@@ -77,8 +84,8 @@ export function PeriodCompareKpis({ current, prior, metrics }: Props) {
           <KpiTile
             key={key}
             label={label}
-            value={fmt(currVal, format)}
-            sub={`Prior: ${fmt(prevVal, format)}`}
+            value={fmt(currVal, resolvedFormat)}
+            sub={`Prior: ${fmt(prevVal, resolvedFormat)}`}
             trend={pct(currVal, prevVal)}
             invert={/spend|cost|cpc|cpm|cpa/i.test(key)}
           />

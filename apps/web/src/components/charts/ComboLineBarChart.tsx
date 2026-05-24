@@ -15,13 +15,15 @@ import {
   CHART_COLORS,
   detectDateKey,
   detectNumericKeys,
-  fmtCount,
-  fmtCurrency,
+  formatAxisTick,
+  formatMeasureValue,
   isCountMetric,
   isPctMetric,
+  measureFormat,
   prettyLabel,
   shortDate,
 } from "./format"
+import { useChartTheme } from "@/hooks/useChartTheme"
 
 interface Props {
   rows: Record<string, unknown>[]
@@ -30,18 +32,20 @@ interface Props {
 }
 
 export function ComboLineBarChart({ rows, barMeasures, lineMeasures }: Props) {
-  if (!rows?.length) return <p className="text-sm text-slate-500">No data for this period.</p>
+  if (!rows?.length) return <p className="text-sm text-stone-500 dark:text-night-500">No data for this period.</p>
 
   const dateKey = detectDateKey(rows)
   const numericKeys = detectNumericKeys(rows, dateKey ? [dateKey] : [])
   if (!dateKey || !numericKeys.length) {
-    return <p className="text-sm text-slate-500">Cannot render chart — unexpected data shape.</p>
+    return (
+      <p className="text-sm text-stone-500 dark:text-night-500">Cannot render chart — unexpected data shape.</p>
+    )
   }
 
-  const bars = barMeasures ?? numericKeys.filter((k) => isCountMetric(k)).slice(0, 1)
+  const bars = barMeasures ?? numericKeys.filter((k) => isCountMetric(k)).slice(0, 2)
   const lines = lineMeasures ?? numericKeys.filter((k) => !bars.includes(k)).slice(0, 2)
   if (!bars.length && !lines.length) {
-    return <p className="text-sm text-slate-500">Cannot render chart — no measures.</p>
+    return <p className="text-sm text-stone-500 dark:text-night-500">Cannot render chart — no measures.</p>
   }
 
   const sorted = [...rows].sort((a, b) => String(a[dateKey]).localeCompare(String(b[dateKey])))
@@ -55,18 +59,23 @@ export function ComboLineBarChart({ rows, barMeasures, lineMeasures }: Props) {
 
   const barLabels = bars.map(prettyLabel)
   const lineLabels = lines.map(prettyLabel)
+  const lineFormats = lines.map(measureFormat)
+  const barFormats = bars.map(measureFormat)
   const lineIsPct = lines.some((k) => isPctMetric(k))
-  const lineIsCurrency = lines.some((k) => !isPctMetric(k) && !isCountMetric(k))
+
+  const ct = useChartTheme()
 
   return (
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={data} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
         <YAxis
           yAxisId="left"
-          tickFormatter={lineIsPct ? (v) => `${(Number(v) * 100).toFixed(1)}%` : fmtCurrency}
-          tick={{ fill: "#94a3b8", fontSize: 11 }}
+          tickFormatter={(v) =>
+            lineIsPct ? `${(Number(v) * 100).toFixed(1)}%` : formatAxisTick(v, lineFormats)
+          }
+          tick={{ fill: ct.tick, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           width={62}
@@ -75,21 +84,25 @@ export function ComboLineBarChart({ rows, barMeasures, lineMeasures }: Props) {
           <YAxis
             yAxisId="right"
             orientation="right"
-            tickFormatter={fmtCount}
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            tickFormatter={(v) => formatAxisTick(v, barFormats)}
+            tick={{ fill: ct.tick, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
-            width={46}
+            width={52}
           />
         )}
         <Tooltip
-          contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+          contentStyle={ct.tooltip}
+          formatter={(v: number, name: string) => {
+            const raw = [...bars, ...lines].find((k) => prettyLabel(k) === name) ?? name
+            return [formatMeasureValue(v, raw), name]
+          }}
         />
-        <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+        <Legend wrapperStyle={ct.legend} />
         {barLabels.map((label, i) => (
           <Bar
             key={label}
-            yAxisId={bars.length && (lineLabels.length || lineIsCurrency) ? "right" : "left"}
+            yAxisId={bars.length && lineLabels.length ? "right" : "left"}
             dataKey={label}
             fill={CHART_COLORS[i % CHART_COLORS.length]}
             radius={[3, 3, 0, 0]}

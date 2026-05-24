@@ -33,8 +33,8 @@ export default async function AdsPage() {
   return (
     <main className="p-6 space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-stone-900">Meta Ads</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">Meta Ads</h1>
+        <p className="text-sm text-stone-500 dark:text-night-500 mt-1">
           Ad performance & attribution · {start} → {end} · ROAS = purchase_value / ad_spend
         </p>
         {error && (

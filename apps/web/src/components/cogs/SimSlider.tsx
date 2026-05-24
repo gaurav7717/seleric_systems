@@ -32,8 +32,8 @@ export function SimSlider({
   return (
     <div className="group">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] leading-tight text-stone-500">{label}</span>
-        <span className="shrink-0 text-xs font-semibold tabular-nums text-stone-900">
+        <span className="text-[11px] leading-tight text-stone-500 dark:text-night-500">{label}</span>
+        <span className="shrink-0 text-xs font-semibold tabular-nums text-stone-900 dark:text-night-50">
           {prefix}
           {formatValue(value, suffix)}
           {suffix}
@@ -47,9 +47,7 @@ export function SimSlider({
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{
-            background: `linear-gradient(to right, rgb(46 125 50) 0%, rgb(46 125 50) ${pct}%, rgb(231 229 228) ${pct}%, rgb(231 229 228) 100%)`,
-          }}
+          style={{ ["--sim-fill-pct" as string]: `${pct}%` }}
           className="sim-range h-1 w-full cursor-pointer appearance-none rounded-full outline-none transition-opacity group-hover:opacity-100"
           aria-label={label}
         />

@@ -13,7 +13,7 @@ const fmtSigned = (n: number) => {
 
 function BlockTitle({ children }: { children: string }) {
   return (
-    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-night-500">
       {children}
     </p>
   )
@@ -50,7 +50,7 @@ export function UnitEconomicsGrid({
       : "Scale to target profit"
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-insight-border bg-white p-3.5 shadow-sm">
+    <div className="flex flex-col gap-3 rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 p-3.5 shadow-sm dark:shadow-none">
       <BlockTitle>Unit economics</BlockTitle>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <MetricTile label="Net revenue / unit" value={fmt(netRev)} compact highlight />
@@ -72,7 +72,7 @@ export function UnitEconomicsGrid({
         <MetricTile label="ROAS" value={`${roas.toFixed(2)}x`} compact />
       </div>
 
-      <div className="border-t border-stone-200 pt-3">
+      <div className="border-t border-stone-200 dark:border-night-800 pt-3">
         <BlockTitle>Break-even &amp; target cost</BlockTitle>
         <div className="grid grid-cols-3 gap-2">
           <MetricTile
@@ -96,7 +96,7 @@ export function UnitEconomicsGrid({
           />
         </div>
         <div className="mt-2.5">
-          <div className="mb-1 flex justify-between text-[10px] text-stone-500">
+          <div className="mb-1 flex justify-between text-[10px] text-stone-500 dark:text-night-500">
             <span>Cost gap</span>
             <span>
               {alreadyAtTarget
@@ -104,7 +104,7 @@ export function UnitEconomicsGrid({
                 : `${requiredReductionPct.toFixed(1)}% reduction needed`}
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-stone-200">
+          <div className="h-1.5 overflow-hidden rounded-full bg-stone-200 dark:bg-night-800">
             <div
               className={`h-full rounded-full transition-all ${
                 alreadyAtTarget
@@ -122,7 +122,7 @@ export function UnitEconomicsGrid({
       </div>
 
       {ordersRequired !== null && (
-        <div className="border-t border-stone-200 pt-3">
+        <div className="border-t border-stone-200 dark:border-night-800 pt-3">
           <BlockTitle>{scaleLabel}</BlockTitle>
           <div className="grid grid-cols-3 gap-2">
             <MetricTile

@@ -17,8 +17,8 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-56 border-r border-stone-200 bg-white p-4 shrink-0">
-      <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-4 px-2">Navigation</p>
+    <aside className="w-56 border-r border-stone-200 dark:border-night-800 bg-white dark:bg-night-925 p-4 shrink-0">
+      <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-night-600 mb-4 px-2">Navigation</p>
       <nav className="flex flex-col gap-0.5 text-sm">
         {links.map((link) => {
           const active = pathname === link.href || pathname.startsWith(`${link.href}/`)
@@ -28,8 +28,8 @@ export function Sidebar() {
               href={link.href}
               className={`rounded-lg px-3 py-2 transition-colors ${
                 active
-                  ? "bg-stone-100 text-stone-900 font-medium"
-                  : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+                  ? "bg-stone-100 dark:bg-night-850 text-stone-900 dark:text-night-50 font-medium"
+                  : "text-stone-600 dark:text-night-400 hover:bg-stone-50 dark:hover:bg-night-875 hover:text-stone-900 dark:hover:text-night-50"
               }`}
             >
               {link.label}

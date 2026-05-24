@@ -67,15 +67,21 @@ def _parse_mcp_result(content: list) -> list[dict]:
         text = getattr(block, "text", None)
         if not text:
             continue
+        trimmed = text.strip()
         try:
-            parsed = json.loads(text)
-            if isinstance(parsed, list):
-                return parsed
-            if isinstance(parsed, dict):
-                # cube_query returns full Cube response with "data" key
-                return parsed.get("data", [parsed])
-        except (json.JSONDecodeError, AttributeError):
-            pass
+            parsed = json.loads(trimmed)
+        except json.JSONDecodeError:
+            json_start = trimmed.find("\n{")
+            if json_start < 0:
+                continue
+            try:
+                parsed = json.loads(trimmed[json_start:].strip())
+            except json.JSONDecodeError:
+                continue
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return parsed.get("data", [parsed])
     return []
 
 

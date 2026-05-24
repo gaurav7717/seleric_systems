@@ -36,7 +36,7 @@ function inferColumnRole(key: string, sample: unknown): ColumnRole {
     return "metric"
   }
 
-  if (typeof sample === "string" && sample.length > 0 && sample.length < 80) return "category"
+  if (typeof sample === "string" && sample.length > 0 && sample.length < 200) return "category"
   return "unknown"
 }
 
@@ -114,7 +114,9 @@ export function valueColor(key: string, value: number): string {
   }
   if (role === "spend" || role === "cac") return "text-insight-cost"
   if (/ltv.?cac/i.test(key)) {
-    return value < 1 ? "text-orange-600" : "text-insight-cost font-semibold"
+    return value < 1
+      ? "text-orange-600 dark:text-orange-400"
+      : "text-insight-cost font-semibold"
   }
-  return "text-stone-900"
+  return "text-stone-900 dark:text-night-100"
 }

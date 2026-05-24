@@ -26,8 +26,17 @@ export function deriveRowMetrics(row: CubeRow): CubeRow {
 
   const out = { ...row }
 
+  // Track which derived fields were successfully computed for diagnostics
+  const missing: string[] = []
+
   if (!("derived.cac" in out) || out["derived.cac"] == null) {
-    if (orders > 0 && spend > 0) out["derived.cac"] = spend / orders
+    if (orders > 0 && spend > 0) {
+      out["derived.cac"] = spend / orders
+    } else if (spendKey && !ordersKey) {
+      missing.push("orders (needed for CAC)")
+    } else if (ordersKey && !spendKey) {
+      missing.push("ad_spend (needed for CAC)")
+    }
   }
 
   const margin = revenue > 0 ? grossProfit / revenue : null
@@ -36,6 +45,10 @@ export function deriveRowMetrics(row: CubeRow): CubeRow {
   if (!("derived.ltv_estimate" in out) || out["derived.ltv_estimate"] == null) {
     if (aov != null && margin != null && margin > 0) {
       out["derived.ltv_estimate"] = aov * margin * 1.4
+    } else if (!aovKey && !revenueKey) {
+      missing.push("revenue/aov (needed for LTV)")
+    } else if (!grossProfitKey) {
+      missing.push("gross_profit (needed for LTV margin)")
     }
   }
 
@@ -43,6 +56,10 @@ export function deriveRowMetrics(row: CubeRow): CubeRow {
   const ltv = Number(out["derived.ltv_estimate"] ?? 0)
   if (cac > 0 && ltv > 0) {
     out["derived.ltv_cac"] = ltv / cac
+  }
+
+  if (missing.length) {
+    out["derived.__missing"] = missing.join("; ")
   }
 
   return out

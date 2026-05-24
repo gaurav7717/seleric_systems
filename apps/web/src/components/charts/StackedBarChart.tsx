@@ -18,6 +18,7 @@ import {
   prettyLabel,
   shortDate,
 } from "./format"
+import { useChartTheme } from "@/hooks/useChartTheme"
 
 interface Props {
   rows: Record<string, unknown>[]
@@ -34,12 +35,12 @@ function detectCategoryKey(rows: Record<string, unknown>[]): string | null {
 }
 
 export function StackedBarChart({ rows, series, categoryKey }: Props) {
-  if (!rows?.length) return <p className="text-sm text-slate-500">No data for this period.</p>
+  if (!rows?.length) return <p className="text-sm text-stone-500 dark:text-night-500">No data for this period.</p>
 
   const dateKey = detectDateKey(rows)
   const catKey = categoryKey ?? (dateKey ? null : detectCategoryKey(rows))
   const xKey = dateKey ?? catKey
-  if (!xKey) return <p className="text-sm text-slate-500">Cannot render chart — no category dimension.</p>
+  if (!xKey) return <p className="text-sm text-stone-500 dark:text-night-500">Cannot render chart — no category dimension.</p>
 
   const defs =
     series ??
@@ -60,23 +61,25 @@ export function StackedBarChart({ rows, series, categoryKey }: Props) {
     return point
   })
 
+  const ct = useChartTheme()
+
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
         <YAxis
           tickFormatter={fmtCurrency}
-          tick={{ fill: "#94a3b8", fontSize: 11 }}
+          tick={{ fill: ct.tick, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           width={62}
         />
         <Tooltip
           formatter={(v: number) => fmtCurrency(v)}
-          contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+          contentStyle={ct.tooltip}
         />
-        <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+        <Legend wrapperStyle={ct.legend} />
         {defs.map(({ label }, i) => (
           <Bar
             key={label}

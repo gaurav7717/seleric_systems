@@ -10,7 +10,7 @@ interface Props {
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <h3 className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+    <h3 className="mb-2.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-night-500">
       {children}
     </h3>
   )
@@ -20,7 +20,7 @@ export function SimInputPanel({ inputs, onChange }: Props) {
   const maxCogs = Math.max(2000, inputs.asp)
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-insight-border bg-white p-3.5 shadow-sm">
+    <div className="flex flex-col gap-4 rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 p-3.5 shadow-sm dark:shadow-none">
       <SectionLabel>Assumptions</SectionLabel>
       <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">
         <SimSlider
@@ -79,15 +79,15 @@ export function SimInputPanel({ inputs, onChange }: Props) {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200 pt-3">
-        <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-stone-700">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-stone-200 dark:border-night-800 pt-3">
+        <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-stone-700 dark:text-night-200">
           <button
             type="button"
             role="switch"
             aria-checked={inputs.gstInclusive}
             onClick={() => onChange({ gstInclusive: !inputs.gstInclusive })}
             className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
-              inputs.gstInclusive ? "bg-insight-positive" : "bg-stone-300"
+              inputs.gstInclusive ? "bg-insight-positive" : "bg-stone-300 dark:bg-night-700"
             }`}
           >
             <span
@@ -99,12 +99,12 @@ export function SimInputPanel({ inputs, onChange }: Props) {
           GST inclusive price
         </label>
         {inputs.gstInclusive && (
-          <div className="flex items-center gap-1.5 text-xs text-stone-600">
+          <div className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-night-300">
             <span>Tax</span>
             <select
               value={inputs.taxRate}
               onChange={(e) => onChange({ taxRate: Number(e.target.value) })}
-              className="rounded border border-stone-300 bg-white px-1.5 py-0.5 text-xs text-stone-900 focus:border-insight-positive focus:outline-none"
+              className="rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-1.5 py-0.5 text-xs text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none"
             >
               {[0, 5, 12, 18, 28].map((r) => (
                 <option key={r} value={r}>

@@ -19,11 +19,11 @@ export function MetricTile({
 }: MetricTileProps) {
   return (
     <div
-      className={`flex min-w-0 flex-col rounded-lg border border-insight-border bg-stone-50 ${
+      className={`flex min-w-0 flex-col rounded-lg border border-insight-border dark:border-night-800 bg-stone-50 dark:bg-night-850 ${
         compact ? "px-2.5 py-2" : "px-3 py-2.5"
       }`}
     >
-      <span className="truncate text-[10px] font-medium uppercase tracking-wide text-stone-500">
+      <span className="truncate text-[10px] font-medium uppercase tracking-wide text-stone-500 dark:text-night-500">
         {label}
       </span>
       <span
@@ -34,12 +34,12 @@ export function MetricTile({
             ? "text-insight-negative"
             : highlight
               ? "text-insight-positive"
-              : "text-stone-900"
+              : "text-stone-900 dark:text-night-50"
         }`}
       >
         {value}
       </span>
-      {sub && <span className="truncate text-[10px] text-stone-500">{sub}</span>}
+      {sub && <span className="truncate text-[10px] text-stone-500 dark:text-night-500">{sub}</span>}
     </div>
   )
 }

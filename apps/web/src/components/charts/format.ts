@@ -28,11 +28,58 @@ export function prettyLabel(key: string): string {
 }
 
 export function isCountMetric(key: string): boolean {
-  return /orders?|count|qty|quantity|units?|clicks?|impressions?|views?|engagements?/i.test(key)
+  return /orders?|count|qty|quantity|units?|clicks?|impressions?|views?|engagements?|carts?|purchases?|reach|likes|comments|shares|follows|leads|signups|subscribers|landing|video|post_engagement/i.test(
+    key,
+  )
 }
 
 export function isPctMetric(key: string): boolean {
-  return /pct|rate|margin|ctr|roas/i.test(key)
+  return /pct|margin|ctr|cvr/i.test(key) && !/roas/i.test(key)
+}
+
+export function isRatioMetric(key: string): boolean {
+  return /roas|roi|acos/i.test(key)
+}
+
+export type MeasureFormat = "currency" | "count" | "pct" | "ratio"
+
+export function measureFormat(key: string): MeasureFormat {
+  if (isPctMetric(key)) return "pct"
+  if (isRatioMetric(key)) return "ratio"
+  if (isCountMetric(key)) return "count"
+  return "currency"
+}
+
+export function formatMeasureValue(v: number, key: string): string {
+  switch (measureFormat(key)) {
+    case "count":
+      return fmtCount(v)
+    case "pct":
+      return fmtPct(v)
+    case "ratio":
+      return `${v.toFixed(2)}x`
+    default:
+      return fmtCurrency(v)
+  }
+}
+
+/** Y-axis tick formatter when multiple measures share one axis. */
+export function formatAxisTick(v: number, formats: MeasureFormat[]): string {
+  const unique = [...new Set(formats)]
+  if (unique.length === 1) {
+    switch (unique[0]) {
+      case "count":
+        return fmtCount(v)
+      case "pct":
+        return fmtPct(v)
+      case "ratio":
+        return v >= 10 ? `${v.toFixed(0)}x` : `${v.toFixed(1)}x`
+      default:
+        return fmtCurrency(v)
+    }
+  }
+  if (unique.every((f) => f === "count" || f === "ratio")) return fmtCount(v)
+  return fmtCurrency(v)
 }
 
 export function detectDateKey(rows: Record<string, unknown>[]): string | null {

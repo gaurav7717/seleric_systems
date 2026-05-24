@@ -1,21 +1,27 @@
 "use client"
 
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts"
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts"
+import { useChartTheme } from "@/hooks/useChartTheme"
+import {
+  detectDateKey,
+  formatAxisTick,
+  formatMeasureValue,
+  measureFormat,
+  type MeasureFormat,
+  prettyLabel,
+} from "@/components/charts/format"
 
 interface Props {
   rows: Record<string, unknown>[]
-}
-
-function fmtK(v: number): string {
-  if (Math.abs(v) >= 1_00_000) return `₹${(v / 1_00_000).toFixed(1)}L`
-  if (Math.abs(v) >= 1_000) return `₹${(v / 1_000).toFixed(1)}K`
-  return `₹${v.toFixed(0)}`
-}
-
-function fmtCount(v: number): string {
-  if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`
-  return `${v.toFixed(0)}`
 }
 
 function shortDate(iso: string): string {
@@ -23,41 +29,39 @@ function shortDate(iso: string): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-IN", { month: "short", day: "numeric" })
 }
 
-const CustomTooltip = ({ active, payload, label }: {
-  active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string
-}) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-xs shadow-xl">
-      <p className="text-slate-400 mb-2 font-medium">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }} className="mb-1">
-          {p.name}: {isCountMetric(p.name) ? fmtCount(p.value) : fmtK(p.value)}
-        </p>
-      ))}
-    </div>
-  )
-}
-
 const LINE_COLORS = ["#34d399", "#f97316", "#a78bfa", "#60a5fa", "#fb7185", "#fbbf24"]
 
-function detectFields(rows: Record<string, unknown>[]) {
-  if (!rows.length) return { dateKey: null, numericKeys: [] }
-  const keys = Object.keys(rows[0])
-
-  const dateKey =
-    keys.find((k) => /report_date|created_at|date_start|date_stop|period|\.day$|\.week$|\.month$/i.test(k) && !k.endsWith(".day") === false) ??
-    keys.find((k) => /report_date|created_at|date_start|date\b/i.test(k) && typeof rows[0][k] === "string" && String(rows[0][k]).includes("T")) ??
-    keys.find((k) => /date/i.test(k))
-
-  const numericKeys = keys.filter((k) => {
+function detectNumericKeys(rows: Record<string, unknown>[], dateKey: string | null): string[] {
+  if (!rows.length) return []
+  return Object.keys(rows[0]).filter((k) => {
     if (k === dateKey) return false
     if (/\.id$|_id$|surrogate/i.test(k)) return false
     const v = rows[0][k]
-    return typeof v === "number" || (typeof v === "string" && !isNaN(Number(v)) && v.trim() !== "")
+    return typeof v === "number" || (typeof v === "string" && !isNaN(Number(v)) && String(v).trim() !== "")
   })
+}
 
-  // Prefer revenue/spend/profit keys for display
+function axisForFormat(fmt: MeasureFormat): "left" | "right" {
+  return fmt === "currency" || fmt === "ratio" ? "left" : "right"
+}
+
+export function TrendChart({ rows }: Props) {
+  const ct = useChartTheme()
+
+  if (!rows?.length) {
+    return <p className="text-sm text-stone-500 dark:text-night-500">No trend data.</p>
+  }
+
+  const dateKey = detectDateKey(rows)
+  const numericKeys = detectNumericKeys(rows, dateKey)
+  if (!dateKey || !numericKeys.length) {
+    return (
+      <p className="text-sm text-stone-500 dark:text-night-500">
+        Cannot render chart — unexpected data shape.
+      </p>
+    )
+  }
+
   const priority = (k: string) => {
     if (/revenue|gross_revenue|sales/i.test(k)) return 0
     if (/ad_spend|spend|cost/i.test(k)) return 1
@@ -65,27 +69,7 @@ function detectFields(rows: Record<string, unknown>[]) {
     if (/orders|gross_profit|cogs/i.test(k)) return 3
     return 4
   }
-  numericKeys.sort((a, b) => priority(a) - priority(b))
-
-  return { dateKey, numericKeys: numericKeys.slice(0, 5) }
-}
-
-function prettyLabel(key: string): string {
-  return key
-    .replace(/^[^.]+\./, "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-function isCountMetric(key: string): boolean {
-  return /orders?|count|qty|quantity|units?|clicks?|impressions?|sessions?|visits?/i.test(key)
-}
-
-export function TrendChart({ rows }: Props) {
-  if (!rows?.length) return <p className="text-sm text-slate-500">No trend data.</p>
-
-  const { dateKey, numericKeys } = detectFields(rows)
-  if (!dateKey || !numericKeys.length) return <p className="text-sm text-slate-500">Cannot render chart — unexpected data shape.</p>
+  const sortedKeys = [...numericKeys].sort((a, b) => priority(a) - priority(b)).slice(0, 5)
 
   const sorted = [...rows].sort((a, b) => {
     const av = String(a[dateKey] ?? "")
@@ -93,13 +77,20 @@ export function TrendChart({ rows }: Props) {
     return av < bv ? -1 : av > bv ? 1 : 0
   })
 
-  const metricDefs = numericKeys.map((rawKey) => ({
-    rawKey,
-    label: prettyLabel(rawKey),
-    axis: isCountMetric(rawKey) ? "right" : "left",
-  }))
+  const metricDefs = sortedKeys.map((rawKey) => {
+    const format = measureFormat(rawKey)
+    return {
+      rawKey,
+      label: prettyLabel(rawKey),
+      format,
+      axis: axisForFormat(format),
+    }
+  })
 
-  const hasRightAxis = metricDefs.some((m) => m.axis === "right")
+  const hasLeft = metricDefs.some((m) => m.axis === "left")
+  const hasRight = metricDefs.some((m) => m.axis === "right")
+  const leftFormats = metricDefs.filter((m) => m.axis === "left").map((m) => m.format)
+  const rightFormats = metricDefs.filter((m) => m.axis === "right").map((m) => m.format)
 
   const data = sorted.map((r) => {
     const point: Record<string, unknown> = { date: shortDate(String(r[dateKey] ?? "")) }
@@ -110,45 +101,55 @@ export function TrendChart({ rows }: Props) {
   })
 
   return (
-    <div className="my-3 rounded-xl border border-slate-700 bg-slate-900 p-4">
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data} margin={{ top: 4, right: hasRightAxis ? 26 : 12, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-          <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart
+        data={data}
+        margin={{ top: 4, right: hasRight ? 52 : 12, left: 0, bottom: 0 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
+        {hasLeft && (
           <YAxis
             yAxisId="left"
-            tickFormatter={fmtK}
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            tickFormatter={(v) => formatAxisTick(v, leftFormats)}
+            tick={{ fill: ct.tick, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             width={62}
           />
-          {hasRightAxis && (
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tickFormatter={fmtCount}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              width={46}
-            />
-          )}
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 12, color: "#94a3b8" }} />
-          {metricDefs.map((m, i) => (
-            <Line
-              key={m.label}
-              type="monotone"
-              dataKey={m.label}
-              yAxisId={m.axis}
-              stroke={LINE_COLORS[i % LINE_COLORS.length]}
-              strokeWidth={2}
-              dot={false}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+        )}
+        {hasRight && (
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            tickFormatter={(v) => formatAxisTick(v, rightFormats)}
+            tick={{ fill: ct.tick, fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+            width={52}
+          />
+        )}
+        <Tooltip
+          contentStyle={ct.tooltip}
+          formatter={(v: number, _name: string, item: { dataKey?: string | number }) => {
+            const label = String(item.dataKey ?? "")
+            const m = metricDefs.find((d) => d.label === label)
+            return [formatMeasureValue(v, m?.rawKey ?? label), label]
+          }}
+        />
+        <Legend wrapperStyle={ct.legend} />
+        {metricDefs.map((m, i) => (
+          <Line
+            key={m.label}
+            type="monotone"
+            dataKey={m.label}
+            yAxisId={hasLeft && hasRight ? m.axis : hasRight ? "right" : "left"}
+            stroke={LINE_COLORS[i % LINE_COLORS.length]}
+            strokeWidth={2}
+            dot={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   )
 }

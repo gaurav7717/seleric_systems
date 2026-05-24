@@ -4,8 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { ChartShell } from "./ChartShell"
 import { formatInr } from "@/lib/chat/visualization/format-inr"
 import type { ChartPlan, NormalizedRow } from "@/lib/chat/visualization"
-
-const GRID = "#E8E5DC"
+import { useChartTheme } from "@/hooks/useChartTheme"
 
 export function WaterfallChartView({ rows, plan }: { rows: NormalizedRow[]; plan: ChartPlan }) {
   const row = rows[0] ?? {}
@@ -14,14 +13,16 @@ export function WaterfallChartView({ rows, plan }: { rows: NormalizedRow[]; plan
     value: Number(row[s.key] ?? 0),
   }))
 
+  const ct = useChartTheme()
+
   return (
     <ChartShell title={plan.title ?? "Bridge"}>
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
-          <XAxis dataKey="name" tick={{ fill: "#6B7280", fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
-          <YAxis tickFormatter={(v) => formatInr(v)} tick={{ fill: "#6B7280", fontSize: 11 }} width={64} />
-          <Tooltip formatter={(v: number) => formatInr(v)} />
+          <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+          <XAxis dataKey="name" tick={{ fill: ct.tick, fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
+          <YAxis tickFormatter={(v) => formatInr(v)} tick={{ fill: ct.tick, fontSize: 11 }} width={64} />
+          <Tooltip formatter={(v: number) => formatInr(v)} contentStyle={ct.tooltip} />
           <Bar dataKey="value" radius={[2, 2, 0, 0]}>
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.value >= 0 ? "#2A9D8F" : "#E57373"} />

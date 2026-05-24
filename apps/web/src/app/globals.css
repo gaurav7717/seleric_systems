@@ -2,14 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Insight semantic color tokens ─────────────────────────────────────────
+   Defined as CSS variables so any component using `text-insight-*` or
+   `bg-insight-*` gets dark-mode adaptation automatically — including
+   className strings built at runtime (e.g. KPI tile labels). */
+:root {
+  --color-insight-positive: #2E7D32;
+  --color-insight-negative: #C62828;
+  --color-insight-cost:     #B8860B;
+  --color-insight-revenue:  #4A90D9;
+  --color-insight-profit:   #2A9D8F;
+  --color-insight-muted:    #6B7280;
+}
+
+.dark {
+  --color-insight-positive: #6AAD6E;
+  --color-insight-negative: #D06B65;
+  --color-insight-cost:     #CCA843;
+  --color-insight-revenue:  #6A9DC8;
+  --color-insight-profit:   #42B0A5;
+  --color-insight-muted:    #8B857C;
+}
+
 body {
   @apply bg-stone-50 text-stone-900 antialiased font-sans;
+}
+
+/* html.dark → body: warm espresso base, no pure-black or cold-blue */
+.dark body {
+  background-color: #0F0D0A;
+  color: #EDE8E0;
 }
 
 /* COGS simulation range sliders */
 input.sim-range {
   -webkit-appearance: none;
   appearance: none;
+  background: linear-gradient(
+    to right,
+    rgb(46 125 50) 0%,
+    rgb(46 125 50) var(--sim-fill-pct, 0%),
+    rgb(231 229 228) var(--sim-fill-pct, 0%),
+    rgb(231 229 228) 100%
+  );
+}
+
+.dark input.sim-range {
+  background: linear-gradient(
+    to right,
+    rgb(106 173 110) 0%,
+    rgb(106 173 110) var(--sim-fill-pct, 0%),
+    rgb(46 44 35) var(--sim-fill-pct, 0%),
+    rgb(46 44 35) 100%
+  );
 }
 
 input.sim-range::-webkit-slider-thumb {
@@ -48,4 +93,24 @@ input.sim-range:focus-visible {
 
 input.sim-range:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.35), 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* dark-mode slider overrides — warm thumb on espresso track */
+.dark input.sim-range::-webkit-slider-thumb {
+  background: #EDE8E0;
+  border-color: #6AAD6E;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.dark input.sim-range:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(106, 173, 110, 0.25);
+}
+
+.dark input.sim-range::-moz-range-thumb {
+  background: #EDE8E0;
+  border-color: #6AAD6E;
+}
+
+.dark input.sim-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(106, 173, 110, 0.3), 0 1px 4px rgba(0, 0, 0, 0.4);
 }

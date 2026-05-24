@@ -67,6 +67,22 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
   const plans: ChartPlan[] = []
   const xDate = profile.dateKey ?? profile.categoryKey ?? profile.metricKeys[0] ?? "x"
 
+  // 0. Ranked list hint — pair_count / top_n outputs always render as horizontal bar
+  if (hintType === "ranked" && profile.categoryKey) {
+    const metrics = profile.metricKeys.filter((k) => k !== profile.categoryKey)
+    if (metrics.length >= 1) {
+      plans.push({
+        kind: "horizontal_bar",
+        title: prettyLabel(metrics[0]),
+        xKey: profile.categoryKey,
+        series: seriesFromKeys(metrics.slice(0, 2), profile),
+        options: { horizontal: true },
+      })
+      plans.push({ kind: "table", title: "Full data", xKey: profile.categoryKey, series: [] })
+      return plans
+    }
+  }
+
   // 1. P&L dashboard
   if (isPnlShape(profile) && profile.rowCount >= 4) {
     plans.push({
@@ -81,8 +97,9 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
 
   const keys = Object.keys(rows[0])
 
-  // 2. Funnel
-  if (hasFunnelColumns(keys)) {
+  // 2. Funnel — only when there is no category (e.g. adset_name) dimension.
+  // If a category key exists the data is a per-entity comparison, not a conversion funnel.
+  if (hasFunnelColumns(keys) && !profile.categoryKey) {
     const funnelKeys = keys.filter((k) =>
       /impression|click|view|cart|checkout|purchase|order/i.test(k)
     )
@@ -95,26 +112,33 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
     return plans
   }
 
-  // 3. Channel breakdown (normalized channel key)
-  if (profile.categoryKey === "channel" || rows.every((r) => "channel" in r)) {
-    const metrics = ["revenue", "adSpend", "netProfit"].filter((m) =>
-      rows[0][m] != null || rows[0][`channel_pnl.${m}`] != null
+  // 3. Channel breakdown — detect by category key name or hint
+  const channelKey = profile.categoryKey && /channel|platform|source/i.test(profile.categoryKey)
+    ? profile.categoryKey
+    : hintType === "channel" && profile.categoryKey
+      ? profile.categoryKey
+      : null
+  if (channelKey) {
+    const metricKeys = profile.metricKeys.filter(
+      (k) => profile.columns.find((c) => c.key === k)?.metricRole !== "orders"
     )
-    const metricKeys =
-      metrics.length > 0
-        ? metrics
-        : profile.metricKeys.filter((k) => profile.columns.find((c) => c.key === k)?.metricRole !== "orders")
     plans.push({
       kind: "grouped_bar",
       title: "Channel breakdown",
-      xKey: "channel",
-      series: metricKeys.map((k) => ({ key: k, label: prettyLabel(k) })),
+      xKey: channelKey,
+      series: seriesFromKeys(metricKeys.slice(0, 4), profile),
     })
     return plans
   }
 
-  // 4. Scatter / bubble — two or three numerics, no date
-  if (!profile.dateKey && profile.metricKeys.length >= 2 && !profile.categoryKey) {
+  // 4. Small aggregate KPI — few rows, multiple metrics (must come before scatter)
+  if (profile.rowCount <= 3 && profile.metricKeys.length >= 2) {
+    plans.push({ kind: "summary_kpi", xKey: "summary", series: [] })
+    return plans
+  }
+
+  // 5a. Scatter / bubble — two or three numerics, no date, no category, enough rows to be meaningful
+  if (!profile.dateKey && profile.metricKeys.length >= 2 && !profile.categoryKey && profile.rowCount >= 4) {
     const s = seriesFromKeys(profile.metricKeys, profile)
     if (profile.metricKeys.length >= 3) {
       plans.push({
@@ -134,7 +158,7 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
     return plans
   }
 
-  // 5. Category + metrics
+  // 5b. Category + metrics
   if (profile.categoryKey && !profile.dateKey) {
     const categories = new Set(rows.map((r) => String(r[profile.categoryKey!])))
     const metrics = profile.metricKeys.filter((k) => k !== profile.categoryKey)
@@ -181,22 +205,16 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
       })
     }
 
-    const hasCac = profile.metricKeys.some((k) => /cac/i.test(k)) || rows[0]["derived.cac"] != null
-    const hasLtv = rows[0]["derived.ltv_estimate"] != null
-    if (hasCac && hasLtv) {
+    const cacKey = profile.metricKeys.find((k) => /\bcac\b|derived\.cac/i.test(k)) ?? null
+    const ltvKey = profile.metricKeys.find((k) => /\bltv\b|ltv_estimate/i.test(k)) ?? null
+    if (cacKey && ltvKey) {
       plans.push({
         kind: "dual_line",
         title: "CAC (₹) | LTV (₹)",
         xKey: profile.dateKey,
         series: [
-          { key: "derived.cac", label: "CAC", role: "cac", axis: "left" },
-          {
-            key: "derived.ltv_estimate",
-            label: "Est. LTV",
-            role: "ltv",
-            axis: "left",
-            strokeDasharray: "4 4",
-          },
+          { key: cacKey, label: "CAC", role: "cac", axis: "left" },
+          { key: ltvKey, label: "Est. LTV", role: "ltv", axis: "left", strokeDasharray: "4 4" },
         ],
       })
     }
@@ -235,13 +253,7 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
     return plans
   }
 
-  // 8. Small aggregate KPI
-  if (profile.rowCount <= 3 && profile.metricKeys.length >= 2) {
-    plans.push({ kind: "summary_kpi", xKey: "summary", series: [] })
-    return plans
-  }
-
-  // 9. Radar — single row many metrics
+  // 8. Radar — single row many metrics
   if (profile.rowCount === 1 && profile.metricKeys.length >= 3 && profile.metricKeys.length <= 8) {
     plans.push({
       kind: "radar",

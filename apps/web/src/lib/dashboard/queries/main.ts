@@ -1,6 +1,7 @@
 import "server-only"
 
-import { runCubeQuery, runCubeToolRows } from "../cube-query"
+import { runCubeQuery } from "../cube-query"
+import { fetchKpiTodayYesterday } from "../kpi"
 import { istDateRange, LAST_30_DAYS } from "../date-ranges"
 
 export interface MainDashboardData {
@@ -34,7 +35,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
     returnRateTrend,
     pnlWaterfall,
   ] = await Promise.all([
-    runCubeToolRows("cube_pnl_today_yesterday", {}),
+    fetchKpiTodayYesterday(),
     runCubeQuery({
       measures: ["daily_pnl.net_profit", "daily_pnl.gross_profit"],
       timeDimensions: [td("daily_pnl.report_date", days, "day")],

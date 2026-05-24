@@ -64,7 +64,7 @@ export default async function ShopifyPage() {
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <ChartCard title="Revenue & orders daily" subtitle="net_orders bar · revenue + AOV lines" cube="shopify_orders">
+        <ChartCard title="Revenue & orders daily" subtitle="net_orders bar · gross revenue + AOV lines" cube="shopify_orders">
           <ComboLineBarChart
             rows={data?.revenueOrdersDaily ?? []}
             barMeasures={["shopify_orders.net_orders"]}
@@ -72,22 +72,19 @@ export default async function ShopifyPage() {
           />
         </ChartCard>
 
-        <ChartCard title="Top products by revenue" subtitle="Sorted by net_line_revenue_ex_gst" cube="product_performance">
+        <ChartCard title="Top products by units sold" subtitle="Ranked by total_quantity · shopify_order_line_items" cube="shopify_order_line_items">
           <HorizontalBarChart
             rows={data?.topProducts ?? []}
-            labelKey="product_performance.product_title"
-            measureKeys={["product_performance.net_line_revenue_ex_gst"]}
+            labelKey="shopify_order_line_items.product_title"
+            measureKeys={["shopify_order_line_items.total_quantity"]}
           />
         </ChartCard>
 
-        <ChartCard title="Return & cancel analysis" subtitle="returned_units = RETURNED + IN_PROGRESS" cube="product_performance">
-          <StackedBarChart
+        <ChartCard title="Return rate trend" subtitle="return_rate pre-filtered: RETURNED + IN_PROGRESS only" cube="shopify_orders">
+          <ComboLineBarChart
             rows={data?.returnCancel ?? []}
-            categoryKey="product_performance.product_title"
-            series={[
-              { label: "Returned", measure: "product_performance.returned_units" },
-              { label: "Cancelled", measure: "product_performance.cancelled_units" },
-            ]}
+            barMeasures={["shopify_orders.returned_orders"]}
+            lineMeasures={["shopify_orders.return_rate"]}
           />
         </ChartCard>
 
@@ -117,14 +114,11 @@ export default async function ShopifyPage() {
           <DonutChart slices={fulfillmentDonut} />
         </ChartCard>
 
-        <ChartCard title="Gross margin by SKU" subtitle="gross_profit_ex_gst − COGS" cube="product_performance">
+        <ChartCard title="Units sold by SKU" subtitle="total_quantity ranked by SKU" cube="shopify_order_line_items">
           <HorizontalBarChart
             rows={marginRows}
             labelKey="label"
-            measureKeys={[
-              "product_performance.gross_profit_ex_gst",
-              "product_performance.total_cogs",
-            ]}
+            measureKeys={["shopify_order_line_items.total_quantity"]}
             height={320}
           />
         </ChartCard>
@@ -133,7 +127,7 @@ export default async function ShopifyPage() {
           <StackedAreaChart
             rows={data?.shippingRevenue ?? []}
             series={[
-              { label: "Net sales ex GST", measure: "shopify_orders.net_sales_ex_gst" },
+              { label: "Gross revenue", measure: "shopify_orders.gross_revenue" },
               { label: "Shipping revenue", measure: "shopify_orders.shipping_revenue" },
             ]}
           />

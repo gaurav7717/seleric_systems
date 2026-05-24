@@ -5,6 +5,8 @@
 import "server-only"
 
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js"
+import { parseMcpText } from "./cube-parse"
+import { serverLog } from "./server-log"
 
 const MCP_URL = process.env.CUBE_MCP_URL ?? "https://mcp.seleric.com/sse"
 
@@ -35,11 +37,7 @@ function parseContent(content: unknown[]): unknown {
   for (const block of content) {
     const text = (block as TextContent).text
     if (!text) continue
-    try {
-      return JSON.parse(text)
-    } catch {
-      return text
-    }
+    return parseMcpText(text)
   }
   return null
 }
@@ -52,13 +50,23 @@ export async function callCubeTool(toolName: string, args: Record<string, unknow
   const transport = new SSEClientTransport(new URL(MCP_URL), { requestInit: { headers } })
   const client = new Client({ name: "bi-chat", version: "1.0.0" }, {})
 
-  await client.connect(transport)
+  serverLog("info", `cube connect → ${toolName}`)
   try {
-    console.log(`[cube] → ${toolName}`, JSON.stringify(args).slice(0, 200))
+    await client.connect(transport)
+  } catch (err) {
+    serverLog("error", `cube connect failed for ${toolName}`, String(err))
+    throw err
+  }
+  try {
+    const t0 = Date.now()
+    serverLog("info", `cube → ${toolName}`, JSON.stringify(args).slice(0, 200))
     const result = await client.callTool({ name: toolName, arguments: args })
     const parsed = parseContent(result.content as unknown[])
-    console.log(`[cube] ← ${toolName}`, JSON.stringify(parsed)?.slice(0, 300))
+    serverLog("info", `cube ← ${toolName} (${Date.now() - t0}ms)`, Array.isArray(parsed) ? `${parsed.length} rows` : typeof parsed)
     return parsed
+  } catch (err) {
+    serverLog("error", `cube tool error ${toolName}`, String(err))
+    throw err
   } finally {
     await client.close()
   }
@@ -111,13 +119,17 @@ export async function loadSchema(): Promise<SchemaCache> {
   try {
     const result = await client.callTool({ name: "cube_meta", arguments: {} })
     const text = (result.content as TextContent[])[0]?.text ?? ""
+    const parsed = parseMcpText(text)
+    const schema =
+      parsed && typeof parsed === "object" && "cubes" in (parsed as object)
+        ? (parsed as { cubes: CubeInfo[] })
+        : { cubes: [] as CubeInfo[] }
     const jsonStart = text.indexOf("\n{")
     const cheatSheet = jsonStart > -1 ? text.slice(0, jsonStart).trim() : ""
-    const schema = jsonStart > -1 ? JSON.parse(text.slice(jsonStart)) : { cubes: [] }
 
     _schemaCache = {
       cheatSheet,
-      cubes: schema.cubes as CubeInfo[],
+      cubes: schema.cubes,
       fetchedAt: Date.now(),
     }
     return _schemaCache
@@ -127,8 +139,13 @@ export async function loadSchema(): Promise<SchemaCache> {
 }
 
 export function buildSchemaContext(schema: SchemaCache): string {
+  // Cap cheatSheet to 3000 chars — the full Seleric cube_meta preamble can be very large
+  // and will push Kimi-K2 over context limits when tool results are also in the context.
+  const cheatSheet = schema.cheatSheet.length > 3000
+    ? schema.cheatSheet.slice(0, 3000) + "\n… (truncated — use exploreSchema for details)"
+    : schema.cheatSheet
   const cubeList = schema.cubes.map((c) => `- **${c.name}**: ${c.title}`).join("\n")
-  return `${schema.cheatSheet}\n\n## Cube inventory (call exploreSchema for full measure/dimension list)\n${cubeList}`
+  return `${cheatSheet}\n\n## Cube inventory (call exploreSchema for full measure/dimension list)\n${cubeList}`
 }
 
 export function getCubeDetails(schema: SchemaCache, cubeName: string): CubeInfo | undefined {

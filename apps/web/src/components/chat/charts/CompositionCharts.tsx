@@ -19,6 +19,7 @@ import {
 import { ChartShell } from "./ChartShell"
 import { formatInr } from "@/lib/chat/visualization/format-inr"
 import type { ChartPlan, NormalizedRow } from "@/lib/chat/visualization"
+import { useChartTheme } from "@/hooks/useChartTheme"
 
 const PIE_COLORS = ["#4A90D9", "#B8860B", "#2A9D8F", "#E57373", "#7B68EE", "#E07B54"]
 
@@ -28,6 +29,8 @@ export function PieChartView({ rows, plan, donut = false }: { rows: NormalizedRo
     name: String(r[plan.xKey] ?? ""),
     value: Number(r[metric ?? ""] ?? 0),
   }))
+
+  const ct = useChartTheme()
 
   return (
     <ChartShell title={plan.title}>
@@ -47,7 +50,7 @@ export function PieChartView({ rows, plan, donut = false }: { rows: NormalizedRo
               <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(v: number) => formatInr(v)} />
+          <Tooltip formatter={(v: number) => formatInr(v)} contentStyle={ct.tooltip} />
         </PieChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -71,6 +74,7 @@ export function TreemapChartView({ rows, plan }: { rows: NormalizedRow[]; plan: 
 }
 
 export function RadarChartView({ rows, plan }: { rows: NormalizedRow[]; plan: ChartPlan }) {
+  const ct = useChartTheme()
   const row = rows[0]
   const data = plan.series.map((s) => ({
     metric: s.label,
@@ -81,11 +85,11 @@ export function RadarChartView({ rows, plan }: { rows: NormalizedRow[]; plan: Ch
     <ChartShell title={plan.title}>
       <ResponsiveContainer width="100%" height={280}>
         <RadarChart data={data}>
-          <PolarGrid stroke="#E5E2D8" />
-          <PolarAngleAxis dataKey="metric" tick={{ fill: "#6B7280", fontSize: 11 }} />
-          <PolarRadiusAxis tick={{ fill: "#6B7280", fontSize: 10 }} />
+          <PolarGrid stroke={ct.polar} />
+          <PolarAngleAxis dataKey="metric" tick={{ fill: ct.tick, fontSize: 11 }} />
+          <PolarRadiusAxis tick={{ fill: ct.tick, fontSize: 10 }} />
           <Radar dataKey="value" stroke="#4A90D9" fill="#4A90D9" fillOpacity={0.3} />
-          <Tooltip />
+          <Tooltip contentStyle={ct.tooltip} />
         </RadarChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -93,6 +97,7 @@ export function RadarChartView({ rows, plan }: { rows: NormalizedRow[]; plan: Ch
 }
 
 export function FunnelChartView({ rows, plan }: { rows: NormalizedRow[]; plan: ChartPlan }) {
+  const ct = useChartTheme()
   const row = rows[0] ?? rows
   const data = plan.series
     .map((s) => ({
@@ -106,9 +111,9 @@ export function FunnelChartView({ rows, plan }: { rows: NormalizedRow[]; plan: C
     <ChartShell title={plan.title}>
       <ResponsiveContainer width="100%" height={280}>
         <FunnelChart>
-          <Tooltip />
+          <Tooltip contentStyle={ct.tooltip} />
           <Funnel dataKey="value" data={data} isAnimationActive>
-            <LabelList position="right" fill="#374151" stroke="none" dataKey="name" fontSize={11} />
+            <LabelList position="right" fill={ct.tick} stroke="none" dataKey="name" fontSize={11} />
           </Funnel>
         </FunnelChart>
       </ResponsiveContainer>

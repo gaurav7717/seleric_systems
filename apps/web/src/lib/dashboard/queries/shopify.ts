@@ -21,6 +21,15 @@ function td(dim: string, days: number, granularity?: "day") {
   return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange }
 }
 
+async function safeQuery(query: Parameters<typeof runCubeQuery>[0], label: string): Promise<Record<string, unknown>[]> {
+  try {
+    return await runCubeQuery(query)
+  } catch (e) {
+    console.error(`[shopify] query failed: ${label}`, e)
+    return []
+  }
+}
+
 export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashboardData> {
   const [
     revenueOrdersDaily,
@@ -34,42 +43,34 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
     marginBySku,
     shippingRevenue,
   ] = await Promise.all([
-    runCubeQuery({
+    safeQuery({
       measures: [
         "shopify_orders.gross_revenue",
-        "shopify_orders.net_sales_ex_gst",
         "shopify_orders.net_orders",
         "shopify_orders.aov",
       ],
       timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
-    }),
-    runCubeQuery({
-      dimensions: ["product_performance.product_title"],
-      measures: [
-        "product_performance.gross_line_revenue_ex_gst",
-        "product_performance.net_line_revenue_ex_gst",
-        "product_performance.total_quantity",
-        "product_performance.gross_profit_ex_gst",
-        "product_performance.total_cogs",
-      ],
-      timeDimensions: [td("product_performance.created_at_ist", days)],
-      order: { "product_performance.net_line_revenue_ex_gst": "desc" },
+    }, "revenueOrdersDaily"),
+    // product_performance + product dimensions = nested aggregate error in Cube.
+    // Use shopify_order_line_items.total_quantity (only safe product-dimension measure).
+    safeQuery({
+      dimensions: ["shopify_order_line_items.product_title"],
+      measures: ["shopify_order_line_items.total_quantity"],
+      timeDimensions: [td("shopify_order_line_items.created_at_ist", days)],
+      order: { "shopify_order_line_items.total_quantity": "desc" },
       limit: 15,
-    }),
-    runCubeQuery({
-      dimensions: ["product_performance.product_title"],
+    }, "topProducts"),
+    safeQuery({
       measures: [
-        "product_performance.returned_units",
-        "product_performance.cancelled_units",
-        "product_performance.total_quantity",
-        "product_performance.total_line_discounts",
+        "shopify_orders.return_rate",
+        "shopify_orders.returned_orders",
+        "shopify_orders.net_orders",
       ],
-      timeDimensions: [td("product_performance.created_at_ist", days)],
-      order: { "product_performance.returned_units": "desc" },
-      limit: 20,
-    }),
-    runCubeQuery({
+      timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
+      order: { "shopify_orders.created_at_ist": "asc" },
+    }, "returnCancel"),
+    safeQuery({
       dimensions: ["shopify_orders.ship_country", "shopify_orders.ship_province"],
       measures: [
         "shopify_orders.gross_revenue",
@@ -79,8 +80,8 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
       timeDimensions: [td("shopify_orders.created_at_ist", days)],
       order: { "shopify_orders.gross_revenue": "desc" },
       limit: 50,
-    }),
-    runCubeQuery({
+    }, "revenueByGeo"),
+    safeQuery({
       dimensions: [
         "shopify_orders.utm_source",
         "shopify_orders.utm_medium",
@@ -94,20 +95,18 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
       timeDimensions: [td("shopify_orders.created_at_ist", days)],
       order: { "shopify_orders.gross_revenue": "desc" },
       limit: 30,
-    }),
-    runCubeQuery({
+    }, "utmBreakdown"),
+    safeQuery({
       measures: [
         "shopify_order_line_items.total_line_discounts",
         "shopify_order_line_items.net_line_revenue_ex_gst",
-        "shopify_order_line_items.gross_profit_ex_gst",
-        "shopify_order_line_items.total_cogs",
         "shopify_order_line_items.avg_unit_price",
         "shopify_order_line_items.avg_discounted_unit_price",
       ],
       timeDimensions: [td("shopify_order_line_items.created_at_ist", days, "day")],
       order: { "shopify_order_line_items.created_at_ist": "asc" },
-    }),
-    runCubeQuery({
+    }, "discountImpact"),
+    safeQuery({
       measures: [
         "shopify_order_line_items.units_per_order",
         "shopify_order_line_items.avg_unit_price",
@@ -116,37 +115,31 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
       ],
       timeDimensions: [td("shopify_order_line_items.created_at_ist", days, "day")],
       order: { "shopify_order_line_items.created_at_ist": "asc" },
-    }),
-    runCubeQuery({
+    }, "unitsPerOrder"),
+    safeQuery({
       dimensions: ["shopify_orders.fulfillment_status"],
       measures: ["shopify_orders.orders", "shopify_orders.gross_revenue"],
       timeDimensions: [td("shopify_orders.created_at_ist", days)],
       order: { "shopify_orders.orders": "desc" },
-    }),
-    runCubeQuery({
-      dimensions: ["product_performance.sku", "product_performance.product_title"],
-      measures: [
-        "product_performance.gross_profit_ex_gst",
-        "product_performance.total_cogs",
-        "product_performance.net_line_revenue_ex_gst",
-        "product_performance.avg_unit_price",
-        "product_performance.avg_discounted_unit_price",
-        "product_performance.total_quantity",
-      ],
-      timeDimensions: [td("product_performance.created_at_ist", days)],
-      order: { "product_performance.gross_profit_ex_gst": "desc" },
+    }, "fulfillmentMix"),
+    // product_performance + sku/product_title dimensions also hit nested aggregate.
+    // Use shopify_order_line_items with sku + product_title (only quantity is safe).
+    safeQuery({
+      dimensions: ["shopify_order_line_items.sku", "shopify_order_line_items.product_title"],
+      measures: ["shopify_order_line_items.total_quantity"],
+      timeDimensions: [td("shopify_order_line_items.created_at_ist", days)],
+      order: { "shopify_order_line_items.total_quantity": "desc" },
       limit: 20,
-    }),
-    runCubeQuery({
+    }, "marginBySku"),
+    safeQuery({
       measures: [
         "shopify_orders.gross_revenue",
         "shopify_orders.shipping_revenue",
-        "shopify_orders.net_sales_ex_gst",
         "shopify_orders.orders_with_shipping",
       ],
       timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
-    }),
+    }, "shippingRevenue"),
   ])
 
   return {

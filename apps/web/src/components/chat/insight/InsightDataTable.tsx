@@ -15,11 +15,13 @@ import type { CubeRow } from "@/lib/chat/visualization/column-semantics"
 
 function formatCell(key: string, val: unknown): string {
   if (val == null) return "—"
-  if (/ltv.?cac/i.test(key)) return formatRatio(val)
+  if (/ltv.?cac|roas/i.test(key)) return formatRatio(val)
+  // CTR and CVR are stored as decimals (0.177 = 17.7%)
+  if (/\bctr\b|cvr/i.test(key)) return `${(Number(val) * 100).toFixed(2)}%`
   if (/orders?|count/i.test(key)) return formatCount(val)
   if (/pct|margin|rate/i.test(key)) return `${Number(val).toFixed(1)}%`
   const n = Number(val)
-  if (!isNaN(n) && /revenue|spend|profit|cogs|cac|ltv|cost|aov|amount/i.test(key)) {
+  if (!isNaN(n) && /revenue|spend|profit|cogs|cac|ltv|cost|aov|amount|cpc|cpm/i.test(key)) {
     return formatInr(n, { signed: /profit|net/i.test(key) })
   }
   if (!isNaN(n)) return n.toLocaleString("en-IN", { maximumFractionDigits: 2 })
@@ -50,18 +52,18 @@ export function InsightDataTable({
   return (
     <div className="my-3">
       {title && (
-        <h4 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mb-2 font-sans">
+        <h4 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 dark:text-night-400 mb-2 font-sans">
           {title}
         </h4>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm font-serif border-collapse">
+        <table className="w-full text-sm font-serif border-collapse [&_tbody_tr:nth-child(even)]:bg-stone-50/80 dark:[&_tbody_tr:nth-child(even)]:!bg-night-850/50">
           <thead>
-            <tr className="border-b border-stone-200">
+            <tr className="border-b border-stone-200 dark:border-night-800">
               {headers.map((h) => (
                 <th
                   key={h}
-                  className="py-2 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-stone-500 font-sans whitespace-nowrap"
+                  className="py-2 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-stone-500 dark:text-night-400 font-sans whitespace-nowrap"
                 >
                   {prettyLabel(h)}
                 </th>
@@ -70,15 +72,14 @@ export function InsightDataTable({
           </thead>
           <tbody>
             {(rows as NormalizedRow[]).map((row, i) => (
-              <tr
-                key={i}
-                className={`border-b border-stone-100 ${i % 2 === 1 ? "bg-stone-50/80" : ""}`}
-              >
+              <tr key={i} className="border-b border-stone-100 dark:border-night-800/50">
                 {headers.map((h) => {
                   const val = row[h]
                   const n = Number(val)
                   const colorClass =
-                    !isNaN(n) && typeof val === "number" ? valueColor(h, n) : "text-stone-800"
+                    !isNaN(n) && typeof val === "number"
+                      ? valueColor(h, n)
+                      : "text-stone-800 dark:text-night-200"
                   return (
                     <td
                       key={h}
@@ -91,9 +92,9 @@ export function InsightDataTable({
               </tr>
             ))}
             {summary && (
-              <tr className="border-t-2 border-stone-300 bg-stone-100/60 font-semibold">
+              <tr className="border-t-2 border-stone-300 dark:border-night-700 bg-stone-100/60 dark:bg-night-850 font-semibold">
                 {headers.map((h, i) => (
-                  <td key={h} className="py-2 px-2 text-right text-stone-900">
+                  <td key={h} className="py-2 px-2 text-right text-stone-900 dark:text-night-50">
                     {i === 0 ? "Total / avg" : summary[h] != null ? formatCell(h, summary[h]) : "—"}
                   </td>
                 ))}

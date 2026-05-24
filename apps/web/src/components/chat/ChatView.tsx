@@ -20,7 +20,7 @@ const SUGGESTED = [
 
 function UserBubble({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl bg-stone-200/80 text-stone-900 px-4 py-3 text-sm leading-relaxed rounded-tr-sm max-w-[85%] ml-auto">
+    <div className="rounded-2xl bg-stone-200/80 dark:bg-night-850 text-stone-900 dark:text-night-50 px-4 py-3 text-sm leading-relaxed rounded-tr-sm max-w-[85%] ml-auto">
       {text}
     </div>
   )
@@ -28,8 +28,8 @@ function UserBubble({ text }: { text: string }) {
 
 function StreamingStatus({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 py-2 text-sm text-stone-500 font-sans" role="status" aria-live="polite">
-      <span className="inline-block w-4 h-4 border-2 border-stone-400 border-t-stone-700 rounded-full animate-spin shrink-0" />
+    <div className="flex items-center gap-2 py-2 text-sm text-stone-500 dark:text-night-500 font-sans" role="status" aria-live="polite">
+      <span className="inline-block w-4 h-4 border-2 border-stone-400 dark:border-night-600 border-t-stone-700 dark:border-t-night-200 rounded-full animate-spin shrink-0" />
       <span>{label}</span>
     </div>
   )
@@ -39,7 +39,12 @@ function AssistantMessage({ msg, isStreaming }: { msg: UIMessage; isStreaming?: 
   const partitioned = partitionAssistantMessage(msg)
   const narrative = partitioned.narrativeParts.join("\n\n").trim()
   const anyToolRunning = msg.parts.some((p) => isToolRunning(p))
-  const waitingForNarrative = isStreaming && !narrative && partitioned.cotSteps.every((s) => s.state === "done")
+  const allStepsDone = partitioned.cotSteps.length > 0 && partitioned.cotSteps.every((s) => s.state === "done")
+  const waitingForNarrative = isStreaming && !narrative && allStepsDone
+  // Between tool calls: streaming but no active tool and not all steps done yet (model is deciding next step)
+  const betweenSteps = isStreaming && !anyToolRunning && !waitingForNarrative && partitioned.hasToolActivity && !allStepsDone
+  // Initial thinking: streaming but no tools have started yet
+  const initialThinking = isStreaming && !partitioned.hasToolActivity && !narrative
 
   return (
     <div className="w-full min-w-0">
@@ -50,7 +55,7 @@ function AssistantMessage({ msg, isStreaming }: { msg: UIMessage; isStreaming?: 
       {partitioned.mergedData && <InsightCanvas merged={partitioned.mergedData} />}
 
       {partitioned.mergedData && !narrative && !isStreaming && (
-        <p className="text-xs text-stone-400 font-sans mt-2 italic">
+        <p className="text-xs text-stone-400 dark:text-night-600 font-sans mt-2 italic">
           See insights above from compiled data. Add a follow-up for deeper analysis.
         </p>
       )}
@@ -66,32 +71,30 @@ function AssistantMessage({ msg, isStreaming }: { msg: UIMessage; isStreaming?: 
 
       {narrative && <AssistantMarkdown content={narrative} />}
 
+      {initialThinking && (
+        <StreamingStatus label="Thinking…" />
+      )}
       {isStreaming && anyToolRunning && (
         <StreamingStatus label="Fetching live data from Cube…" />
+      )}
+      {betweenSteps && (
+        <StreamingStatus label="Preparing next query…" />
       )}
       {waitingForNarrative && (
         <StreamingStatus label="Building charts and analysis…" />
       )}
-
-      {/* Text parts that were used as CoT narration are excluded from narrativeParts */}
-      {!partitioned.hasToolActivity &&
-        msg.parts.map((part, i) => {
-          if (isTextUIPart(part) && part.text?.trim()) {
-            return <AssistantMarkdown key={i} content={part.text} />
-          }
-          return null
-        })}
     </div>
   )
 }
 
 export function ChatView() {
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   })
 
   const [input, setInput] = useState("")
   const isLoading = status === "submitted" || status === "streaming"
+  const isError = status === "error"
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -121,13 +124,13 @@ export function ChatView() {
   const empty = messages.length === 0
 
   return (
-    <div className="flex flex-col h-[calc(100vh-57px)] bg-stone-50">
+    <div className="flex flex-col h-[calc(100vh-57px)] bg-stone-50 dark:bg-night-950">
       <div className="flex-1 overflow-y-auto">
         {empty ? (
           <div className="flex flex-col items-center justify-center h-full gap-6 px-4">
             <div className="text-center">
-              <h2 className="text-2xl font-semibold text-stone-900 mb-1 font-sans">BI Assistant</h2>
-              <p className="text-stone-500 text-sm font-sans">
+              <h2 className="text-2xl font-semibold text-stone-900 dark:text-night-50 mb-1 font-sans">BI Assistant</h2>
+              <p className="text-stone-500 dark:text-night-500 text-sm font-sans">
                 Ask anything about your revenue, spend, and P&amp;L
               </p>
             </div>
@@ -136,7 +139,7 @@ export function ChatView() {
                 <button
                   key={s}
                   onClick={() => handleSuggestion(s)}
-                  className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm text-stone-700 hover:border-stone-400 hover:bg-stone-50 transition-colors font-sans"
+                  className="rounded-full border border-stone-300 dark:border-night-800 bg-white dark:bg-night-900 px-4 py-2 text-sm text-stone-700 dark:text-night-200 hover:border-stone-400 dark:hover:border-night-700 hover:bg-stone-50 dark:hover:bg-night-875 transition-colors font-sans"
                 >
                   {s}
                 </button>
@@ -175,12 +178,22 @@ export function ChatView() {
               <StreamingStatus label="Starting analysis…" />
             )}
 
+            {isError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 font-sans">
+                <span className="shrink-0 font-semibold">Error</span>
+                <span>
+                  {error?.message ?? "The model returned an error. Check the server logs panel for details."}
+                  {" "}Try rephrasing your question or check that the Azure/Kimi endpoint is reachable.
+                </span>
+              </div>
+            )}
+
             <div ref={bottomRef} />
           </div>
         )}
       </div>
 
-      <div className="border-t border-stone-200 bg-white px-4 py-4">
+      <div className="border-t border-stone-200 dark:border-night-800 bg-white dark:bg-night-925 px-4 py-4">
         <div className="max-w-5xl mx-auto">
           <form
             onSubmit={(e) => {
@@ -197,7 +210,7 @@ export function ChatView() {
               placeholder="Ask about revenue, spend, P&L, trends…"
               rows={1}
               disabled={isLoading}
-              className="w-full resize-none rounded-2xl border border-stone-300 bg-stone-50 px-4 py-3 pr-12 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-300 disabled:opacity-50 font-sans"
+              className="w-full resize-none rounded-2xl border border-stone-300 dark:border-night-800 bg-stone-50 dark:bg-night-900 px-4 py-3 pr-12 text-sm text-stone-900 dark:text-night-50 placeholder:text-stone-400 dark:placeholder:text-night-600 focus:outline-none focus:border-stone-400 dark:focus:border-night-700 focus:ring-1 focus:ring-stone-300 dark:focus:ring-night-800 disabled:opacity-50 font-sans"
               style={{ minHeight: "48px", maxHeight: "200px" }}
               onInput={(e) => {
                 const t = e.currentTarget
@@ -208,7 +221,7 @@ export function ChatView() {
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="absolute right-3 bottom-3 rounded-lg bg-stone-800 p-1.5 text-white hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="absolute right-3 bottom-3 rounded-lg bg-stone-800 dark:bg-night-50 dark:text-night-950 p-1.5 text-white hover:bg-stone-700 dark:hover:bg-night-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               aria-label="Send"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -216,7 +229,7 @@ export function ChatView() {
               </svg>
             </button>
           </form>
-          <p className="text-center text-xs text-stone-400 mt-2 font-sans">
+          <p className="text-center text-xs text-stone-400 dark:text-night-600 mt-2 font-sans">
             Live data from Seleric · Shift+Enter for new line
           </p>
         </div>

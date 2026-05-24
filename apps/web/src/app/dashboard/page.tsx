@@ -1,10 +1,10 @@
-﻿import { AreaTrendChart } from "@/components/charts/AreaTrendChart"
+﻿import { PnlKpiStrip } from "@/components/charts/PnlKpiStrip"
+import { AreaTrendChart } from "@/components/charts/AreaTrendChart"
 import { ChartCard } from "@/components/charts/ChartCard"
 import { DonutChart } from "@/components/charts/DonutChart"
 import { GroupedBarChart } from "@/components/charts/GroupedBarChart"
 import { PnlWaterfallChart } from "@/components/charts/PnlWaterfallChart"
 import { StackedBarChart } from "@/components/charts/StackedBarChart"
-import { KpiCards } from "@/components/chat/KpiCards"
 import { TrendChart } from "@/components/chat/TrendChart"
 import { daysAgoIST, todayIST } from "@/lib/chat/dates"
 import {
@@ -36,9 +36,9 @@ export default async function DashboardPage() {
   return (
     <main className="p-6 space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-stone-900">Executive Overview</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Main dashboard · {start} → {end} · net_profit = sales ex GST − COGS − ad spend
+        <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">Executive Overview</h1>
+        <p className="text-sm text-stone-500 dark:text-night-500 mt-1">
+          Main dashboard · {start} → {end} · gross_profit = sales ex GST − COGS · net_profit = gross_profit − ad spend
         </p>
         {error && (
           <p className="mt-2 text-sm text-amber-400">
@@ -49,14 +49,14 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartCard title="P&L KPI strip" subtitle="Today vs yesterday (IST)" cube="daily_pnl" className="xl:col-span-2">
-          <KpiCards rows={data?.kpiTodayYesterday ?? []} type="today_vs_yesterday" />
+          <PnlKpiStrip rows={data?.kpiTodayYesterday ?? []} />
         </ChartCard>
 
-        <ChartCard title="Net profit over time" subtitle="daily_pnl.net_profit · 30d" cube="daily_pnl">
+        <ChartCard title="Net profit over time" subtitle="net_profit + gross_profit (sales − COGS) · 30d" cube="daily_pnl">
           <TrendChart rows={data?.netProfitTrend ?? []} />
         </ChartCard>
 
-        <ChartCard title="Revenue vs ad spend vs COGS" subtitle="Daily grouped bar" cube="daily_pnl">
+        <ChartCard title="Revenue vs ad spend vs COGS" subtitle="sales ex GST · COGS · ad spend · net profit" cube="daily_pnl">
           <GroupedBarChart rows={data?.revenueVsSpend ?? []} />
         </ChartCard>
 

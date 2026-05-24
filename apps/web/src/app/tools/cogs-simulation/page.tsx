@@ -16,15 +16,21 @@ import {
 } from "@/lib/campaign-sku-matcher"
 
 const BADGE_STYLE: Record<Classification, string> = {
-  WINNER: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200",
-  BORDERLINE: "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
-  LOSER: "bg-red-50 text-red-800 ring-1 ring-red-200",
+  WINNER:
+    "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 ring-1 ring-emerald-200 dark:ring-emerald-800/60",
+  BORDERLINE:
+    "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-800/60",
+  LOSER:
+    "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-800/60",
 }
 
 const RECOMMEND_STYLE: Record<Classification, string> = {
-  WINNER: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  BORDERLINE: "border-amber-200 bg-amber-50 text-amber-900",
-  LOSER: "border-red-200 bg-red-50 text-red-900",
+  WINNER:
+    "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200",
+  BORDERLINE:
+    "border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200",
+  LOSER:
+    "border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-200",
 }
 
 function todayStr() {
@@ -155,30 +161,30 @@ export default function CogsSimulationPage() {
     <main className="mx-auto max-w-7xl px-4 py-4 sm:px-5 sm:py-6">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-stone-900">COGS Simulation</h1>
-          <p className="text-sm text-stone-500 mt-0.5">
+          <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">COGS Simulation</h1>
+          <p className="text-sm text-stone-500 dark:text-night-500 mt-0.5">
             Unit economics per product — live COGS &amp; campaign attribution
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-stone-500">From</span>
+            <span className="text-[10px] text-stone-500 dark:text-night-500">From</span>
             <input
               type="date"
               value={dateFrom}
               max={dateTo || undefined}
               onChange={(e) => handleDateFromChange(e.target.value)}
-              className="rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 focus:border-insight-positive focus:outline-none"
+              className="rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-2 py-1 text-xs text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
             />
           </label>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] text-stone-500">To</span>
+            <span className="text-[10px] text-stone-500 dark:text-night-500">To</span>
             <input
               type="date"
               value={dateTo}
               min={dateFrom || undefined}
               onChange={(e) => handleDateToChange(e.target.value)}
-              className="rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-900 focus:border-insight-positive focus:outline-none"
+              className="rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-2 py-1 text-xs text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
             />
           </label>
           <button
@@ -192,12 +198,12 @@ export default function CogsSimulationPage() {
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-insight-border bg-white px-3 py-2 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 px-3 py-2 shadow-sm dark:shadow-none">
         {products.length > 0 ? (
           <select
             value={selectedBase}
             onChange={(e) => setSelectedBase(e.target.value)}
-            className="min-w-0 flex-1 rounded border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-900 focus:border-insight-positive focus:outline-none sm:max-w-md"
+            className="min-w-0 flex-1 rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-2 py-1.5 text-sm text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none sm:max-w-md"
           >
             <option value="">— Select product —</option>
             {products.map((p) => (
@@ -207,13 +213,13 @@ export default function CogsSimulationPage() {
             ))}
           </select>
         ) : (
-          <span className="text-xs text-stone-500">No products loaded — use manual inputs below</span>
+          <span className="text-xs text-stone-500 dark:text-night-500">No products loaded — use manual inputs below</span>
         )}
         {selectedProduct && selectedProduct.variantData.length > 1 && (
           <select
             value={selectedVariantSku}
             onChange={(e) => setSelectedVariantSku(e.target.value)}
-            className="rounded border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-900 focus:border-insight-positive focus:outline-none"
+            className="rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-2 py-1.5 text-xs text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none"
           >
             <option value="">All variants</option>
             {selectedProduct.variantData.map((v) => (
@@ -230,20 +236,20 @@ export default function CogsSimulationPage() {
             >
               {result.classification}
             </span>
-            <span className="shrink-0 text-xs tabular-nums text-stone-500">{aspLabel}</span>
+            <span className="shrink-0 text-xs tabular-nums text-stone-500 dark:text-night-500">{aspLabel}</span>
           </>
         )}
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-insight-negative">
+        <div className="mb-3 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-insight-negative">
           Failed to load data: {error}. Manual simulation still works.
         </div>
       )}
 
       {loading && (
-        <div className="mb-3 flex items-center gap-2 text-xs text-stone-500">
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-stone-300 border-t-insight-positive" />
+        <div className="mb-3 flex items-center gap-2 text-xs text-stone-500 dark:text-night-500">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-stone-300 dark:border-night-700 border-t-insight-positive" />
           Loading product &amp; campaign data…
         </div>
       )}
@@ -251,7 +257,7 @@ export default function CogsSimulationPage() {
       {selectedProduct && (
         <div className="mb-3 space-y-2">
           {!selectedVariantSku && selectedProduct.variants.length > 1 && (
-            <p className="truncate text-[10px] text-stone-400">
+            <p className="truncate text-[10px] text-stone-400 dark:text-night-600">
               Variants: {selectedProduct.variants.join(", ")}
             </p>
           )}
@@ -265,7 +271,7 @@ export default function CogsSimulationPage() {
       )}
 
       {!selectedBase && !loading && products.length === 0 && (
-        <p className="mb-3 text-xs text-stone-500">
+        <p className="mb-3 text-xs text-stone-500 dark:text-night-500">
           Adjust assumptions below to run a manual simulation.
         </p>
       )}

@@ -1,5 +1,7 @@
 "use client"
 
+import { fmtCount, fmtCurrency, fmtPct, isCountMetric, isPctMetric, isRatioMetric } from "@/components/charts/format"
+
 interface KpiCardProps {
   label: string
   value: string
@@ -10,16 +12,22 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, sub, trend, invert }: KpiCardProps) {
   const trendPositive = invert ? (trend ?? 0) < 0 : (trend ?? 0) > 0
-  const trendColor = trend === undefined ? "" : trendPositive ? "text-emerald-400" : "text-red-400"
+  const trendColor =
+    trend === undefined
+      ? ""
+      : trendPositive
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-red-600 dark:text-red-400"
   const trendSign = (trend ?? 0) > 0 ? "+" : ""
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 flex flex-col gap-1 min-w-[130px]">
-      <span className="text-xs text-slate-500 uppercase tracking-wide">{label}</span>
-      <span className="text-lg font-semibold text-slate-100">{value}</span>
-      {sub && <span className="text-xs text-slate-400">{sub}</span>}
+    <div className="rounded-lg border border-stone-200 dark:border-night-800 bg-stone-50 dark:bg-night-850 px-4 py-3 flex flex-col gap-1 min-w-[130px]">
+      <span className="text-xs text-stone-500 dark:text-night-500 uppercase tracking-wide">{label}</span>
+      <span className="text-lg font-semibold text-stone-900 dark:text-night-50">{value}</span>
+      {sub && <span className="text-xs text-stone-500 dark:text-night-500">{sub}</span>}
       {trend !== undefined && (
         <span className={`text-xs font-medium ${trendColor}`}>
-          {trendSign}{trend.toFixed(1)}% vs prev
+          {trendSign}
+          {trend.toFixed(1)}% vs prev
         </span>
       )}
     </div>
@@ -29,9 +37,10 @@ function KpiCard({ label, value, sub, trend, invert }: KpiCardProps) {
 function fmtNum(v: unknown, key: string): string {
   if (v == null || v === "") return "—"
   const n = Number(v)
-  if (isNaN(n)) return String(v)
-  if (/order|count|qty|units/i.test(key)) return n.toLocaleString("en-IN", { maximumFractionDigits: 0 })
-  if (/pct|rate|roas|ctr|cvr/i.test(key)) return n.toFixed(2)
+  if (!isFinite(n)) return String(v)
+  if (isPctMetric(key)) return fmtPct(n)
+  if (isRatioMetric(key)) return `${n.toFixed(2)}x`
+  if (isCountMetric(key)) return fmtCount(n)
   const abs = Math.abs(n)
   if (abs >= 1_00_000) return `₹${(n / 1_00_000).toFixed(2)}L`
   if (abs >= 1_000) return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
@@ -39,7 +48,8 @@ function fmtNum(v: unknown, key: string): string {
 }
 
 function pct(curr: unknown, prev: unknown): number | undefined {
-  const c = Number(curr), p = Number(prev)
+  const c = Number(curr)
+  const p = Number(prev)
   if (!isFinite(c) || !isFinite(p) || p === 0) return undefined
   return ((c - p) / Math.abs(p)) * 100
 }
@@ -64,18 +74,19 @@ interface Props {
 }
 
 export function KpiCards({ rows, type }: Props) {
-  if (!rows?.length) return <p className="text-sm text-slate-500">No data returned.</p>
+  if (!rows?.length) return <p className="text-sm text-stone-500 dark:text-night-500">No data returned.</p>
 
   const keys = Object.keys(rows[0]).filter((k) => isMetricKey(k, rows[0][k]))
 
-  // Two rows: show current vs previous comparison
   if (rows.length === 2 || type === "today_vs_yesterday") {
     const sorted = [...rows].sort((a, b) => {
       const dateKey = Object.keys(a).find(isDateKey) ?? ""
-      const av = String(a[dateKey] ?? ""), bv = String(b[dateKey] ?? "")
+      const av = String(a[dateKey] ?? "")
+      const bv = String(b[dateKey] ?? "")
       return bv > av ? 1 : -1
     })
-    const curr = sorted[0], prev = sorted[1]
+    const curr = sorted[0]
+    const prev = sorted[1]
     const dateKey = Object.keys(curr).find(isDateKey)
     const prevDate = dateKey ? String(prev[dateKey] ?? "").slice(0, 10) : "prev"
 
@@ -95,7 +106,6 @@ export function KpiCards({ rows, type }: Props) {
     )
   }
 
-  // Single row: show flat KPI cards
   const row = rows[0]
   return (
     <div className="flex flex-wrap gap-3 my-2">

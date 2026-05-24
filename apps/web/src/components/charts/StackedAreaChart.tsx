@@ -17,6 +17,7 @@ import {
   prettyLabel,
   shortDate,
 } from "./format"
+import { useChartTheme } from "@/hooks/useChartTheme"
 
 interface SeriesDef {
   label: string
@@ -43,23 +44,25 @@ export function StackedAreaChart({ rows, series }: Props) {
     return point
   })
 
+  const ct = useChartTheme()
+
   return (
     <ResponsiveContainer width="100%" height={220}>
       <AreaChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-        <XAxis dataKey="date" tick={{ fill: "#94a3b8", fontSize: 11 }} tickLine={false} axisLine={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
         <YAxis
           tickFormatter={fmtCurrency}
-          tick={{ fill: "#94a3b8", fontSize: 11 }}
+          tick={{ fill: ct.tick, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           width={62}
         />
         <Tooltip
           formatter={(v: number) => fmtCurrency(v)}
-          contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+          contentStyle={ct.tooltip}
         />
-        <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+        <Legend wrapperStyle={ct.legend} />
         {series.map(({ label }, i) => (
           <Area
             key={label}

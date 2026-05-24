@@ -65,7 +65,7 @@ export function InsightCanvas({ merged }: { merged: MergedToolData }) {
   const channelPlan = buildChannelPlan(merged.channelRows)
 
   return (
-    <div className="w-full my-2 rounded-xl bg-insight-canvas/50 border border-insight-border p-3 sm:p-4">
+    <div className="w-full my-2 rounded-xl bg-insight-canvas/50 dark:bg-night-900 border border-insight-border dark:border-night-800 p-3 sm:p-4">
       {showKpi && (
         <KpiSummaryGrid
           seriesRows={chartRows}
@@ -96,7 +96,7 @@ export function InsightCanvas({ merged }: { merged: MergedToolData }) {
       <CompiledInsights merged={merged} />
 
       {showKpi && layout !== "pnl_dashboard" && (
-        <p className="text-xs text-stone-500 font-sans px-1 mt-1">{DERIVED_FORMULA_FOOTER}</p>
+        <p className="text-xs text-stone-500 dark:text-night-500 font-sans px-1 mt-1">{DERIVED_FORMULA_FOOTER}</p>
       )}
     </div>
   )

@@ -71,10 +71,12 @@ export const queryTools = {
     }) =>
       runTool(async () => {
         const result = await runComputedAnalysis(fetchQuery, compute)
-        return okRows(result, {
-          type: result.length > 6 ? "table" : "kpi",
-          label: label ?? "Computed Result",
-        })
+        // Emit a chart hint based on compute type so the chart engine doesn't have to guess
+        const type =
+          compute.type === "pair_count" || compute.type === "top_n" ? "ranked"
+          : compute.type === "group_by" ? (result.length > 6 ? "table" : "kpi")
+          : result.length > 6 ? "table" : "kpi"
+        return okRows(result, { type, label: label ?? "Computed Result" })
       }),
   },
 }

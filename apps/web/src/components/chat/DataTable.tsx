@@ -29,22 +29,22 @@ function prettyHeader(key: string): string {
 
 export function DataTable({ rows, label }: Props) {
   if (!rows.length) {
-    return <div className="text-xs text-slate-500 my-2">No data returned.</div>
+    return <div className="text-xs text-slate-500 dark:text-night-500 my-2">No data returned.</div>
   }
 
   const headers = Object.keys(rows[0])
 
   return (
     <div className="my-2">
-      {label && <div className="text-xs text-slate-400 mb-1 font-medium">{label}</div>}
-      <div className="overflow-x-auto rounded-lg border border-slate-800">
+      {label && <div className="text-xs text-slate-400 dark:text-night-400 mb-1 font-medium">{label}</div>}
+      <div className="overflow-x-auto rounded-lg border border-slate-800 dark:border-night-800">
         <table className="text-xs w-full border-collapse">
           <thead>
             <tr>
               {headers.map((h) => (
                 <th
                   key={h}
-                  className="border-b border-slate-800 bg-slate-900 px-3 py-2 text-left text-slate-400 font-medium whitespace-nowrap"
+                  className="border-b border-slate-800 dark:border-night-800 bg-slate-900 dark:bg-night-875 px-3 py-2 text-left text-slate-400 dark:text-night-400 font-medium whitespace-nowrap"
                 >
                   {prettyHeader(h)}
                 </th>
@@ -53,9 +53,9 @@ export function DataTable({ rows, label }: Props) {
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+              <tr key={i} className="border-b border-slate-800/50 dark:border-night-800/50 hover:bg-slate-800/30 dark:hover:bg-night-850/40">
                 {headers.map((h) => (
-                  <td key={h} className="px-3 py-2 text-slate-300 whitespace-nowrap">
+                  <td key={h} className="px-3 py-2 text-slate-300 dark:text-night-200 whitespace-nowrap">
                     {formatValue(row[h])}
                   </td>
                 ))}
@@ -64,7 +64,7 @@ export function DataTable({ rows, label }: Props) {
           </tbody>
         </table>
       </div>
-      <div className="text-xs text-slate-600 mt-1">{rows.length} row{rows.length !== 1 ? "s" : ""}</div>
+      <div className="text-xs text-slate-600 dark:text-night-600 mt-1">{rows.length} row{rows.length !== 1 ? "s" : ""}</div>
     </div>
   )
 }

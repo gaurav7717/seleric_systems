@@ -5,6 +5,11 @@ export function extractRows(raw: unknown): CubeRow[] {
   if (raw && typeof raw === "object") {
     const obj = raw as Record<string, unknown>
     if (Array.isArray(obj.data)) return obj.data as CubeRow[]
+    // Single aggregate row — any key containing a dot (cube.measure format) is a valid data row.
+    // Excludes error objects which have plain keys like "error", "message", "status".
+    if (Object.keys(obj).some((k) => k.includes("."))) {
+      return [obj as CubeRow]
+    }
   }
   return []
 }

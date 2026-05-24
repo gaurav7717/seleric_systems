@@ -78,8 +78,12 @@ export function partitionAssistantMessage(msg: UIMessage): PartitionedAssistantM
       const text = part.text?.trim() ?? ""
       if (!text) continue
 
+      // A tool has appeared earlier in this message — any short text is inter-step narration.
+      const prevToolExists = msg.parts.slice(0, i).some(isToolUIPart)
       const nextIsTool = msg.parts.slice(i + 1).some(isToolUIPart)
-      if (nextIsTool && isCoTNarration(text, nextIsTool)) {
+      // Treat as CoT narration when a tool comes next OR when we're mid-stream between steps
+      // (prevToolExists means we already have schema/query steps behind us)
+      if (isCoTNarration(text, nextIsTool || prevToolExists)) {
         pendingNarration = text
       } else {
         narrativeParts.push(part.text)

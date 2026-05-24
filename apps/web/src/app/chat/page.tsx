@@ -13,6 +13,16 @@ const ChatView = dynamic(
   }
 )
 
+const DebugLogPanel = dynamic(
+  () => import("@/components/chat/DebugLogPanel").then((m) => m.DebugLogPanel),
+  { ssr: false }
+)
+
 export default function ChatPage() {
-  return <ChatView />
+  return (
+    <>
+      <ChatView />
+      {process.env.NODE_ENV !== "production" && <DebugLogPanel />}
+    </>
+  )
 }
