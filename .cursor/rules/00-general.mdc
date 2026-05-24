@@ -1,0 +1,80 @@
+---
+description: Apply to all files across the entire project
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Multi-Agent Business Intelligence System — General Rules
+
+## Project overview
+This is a multi-agent AI system that monitors a founder's business (Shopify + Meta/Google Ads + ClickHouse data warehouse) and generates actionable insights. It routes signals through a LangGraph orchestrator to specialist agents, then executes or queues approved actions.
+
+**Core data flow:**
+Signal fired (every 15 min) → Orchestrator (LangGraph) → Agent(s) → ActionProposal → Guardrail → AUTO execute OR Approval queue → Outcome store → Signal calibration
+
+**Services:**
+- `services/orchestrator` — Python FastAPI + LangGraph, the central brain
+- `services/agents/*` — Individual specialist agents (insight, meta, shopify, guardrail)
+- `services/worker` — BullMQ async job processor (Node.js)
+- `services/mcp-shopify` — Custom Shopify MCP server (Node.js)
+- `apps/web` — Next.js 14 App Router frontend
+- `packages/db` — Prisma schema + migrations
+- `packages/shared-types` — TypeScript types shared across services
+
+## Naming conventions
+
+### Python (services/orchestrator, services/agents)
+- Files: `snake_case.py`
+- Classes: `PascalCase`
+- Functions/variables: `snake_case`
+- Constants: `UPPER_SNAKE_CASE`
+- Pydantic models: suffix with `Schema` for API I/O, no suffix for internal models
+- LangGraph state keys: `snake_case` strings matching the TypedDict field name exactly
+
+### TypeScript/JavaScript (services/worker, services/mcp-shopify, apps/web)
+- Files: `kebab-case.ts` for utilities/lib, `PascalCase.tsx` for React components
+- Variables/functions: `camelCase`
+- Types/interfaces: `PascalCase`, prefix interfaces with `I` only when needed to disambiguate
+- Constants: `UPPER_SNAKE_CASE` for true constants, `camelCase` for config objects
+- Next.js routes: follow App Router conventions (`page.tsx`, `layout.tsx`, `route.ts`)
+
+## Environment variables
+- All env vars live in `.env.example` at the root (committed) and `.env.local` (not committed)
+- Access via `os.getenv("VAR_NAME")` in Python with explicit fallback or raise on missing
+- Access via `process.env.VAR_NAME` in Node; always validate at startup with zod schema
+- Never hardcode API keys, model names, or service URLs — always reference env vars
+- Model name is always sourced from `ANTHROPIC_MODEL` env var (default: `claude-sonnet-4-20250514`)
+
+## Error handling
+- All service boundaries (API endpoints, MCP tool calls, DB queries) must have try/except or try/catch
+- Log the full error with context before re-raising or returning an error response
+- Use structured logging everywhere — JSON format in production, human-readable in dev
+- Never swallow errors silently — at minimum log them
+- Python: use custom exception classes in `src/exceptions.py` per service
+- TypeScript: use Result types or explicit error unions for domain errors; use thrown exceptions only for unexpected errors
+
+## Logging
+- Python: use `structlog` for structured JSON logging
+- TypeScript: use `pino` for structured JSON logging
+- Always include: `service`, `trace_id`, `entity_id` (when relevant), `signal_id` (when relevant)
+- Log at INFO for normal operations, DEBUG for tool call details, ERROR for failures
+- Never log raw API keys, personal data, or full SQL queries with values substituted
+
+## Testing
+- Python: pytest with async support (`pytest-asyncio`)
+- TypeScript: Vitest for unit/integration, Playwright for e2e
+- Every agent must have a test for: happy path, tool call failure recovery, guardrail rejection
+- Mock all external APIs (Anthropic, Pipeboard, Shopify, ClickHouse) in tests
+- Test files co-located: `tests/` directory at service root, mirroring `src/` structure
+
+## Git conventions
+- Branch naming: `feat/`, `fix/`, `chore/`, `docs/`
+- Commit style: conventional commits (`feat: add guardrail agent`, `fix: redis ttl overflow`)
+- Never commit: `.env`, `*.pyc`, `__pycache__`, `node_modules`, `.DS_Store`
+
+## Security rules (never violate)
+- All Guardrail-classified QUEUE actions go to approval before any execution — no exceptions
+- Write MCP tools (budget change, campaign pause, product update) require `WRITE_ENABLED=true` env var to be set
+- All approval queue items expire after 48 hours — never auto-approve expired items
+- ClickHouse queries must go through the query guard layer — no raw user input in queries
+- Never log full Claude API responses in production (may contain sensitive business data)

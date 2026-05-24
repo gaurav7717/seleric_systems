@@ -1,0 +1,31 @@
+{
+  "name": "multiagent-system",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Multi-agent business intelligence system — Shopify + Ads + ClickHouse",
+  "packageManager": "pnpm@9.1.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "db:migrate": "pnpm --filter @multiagent/db migrate:dev",
+    "db:generate": "pnpm --filter @multiagent/db generate",
+    "db:studio": "pnpm --filter @multiagent/db studio",
+    "setup": "bash infra/scripts/setup-dev.sh",
+    "start": "node -e \"require('child_process').spawnSync(process.platform==='win32'?'powershell': 'bash', process.platform==='win32'?['-ExecutionPolicy','Bypass','-File','start.ps1']:['start.sh'], {stdio:'inherit', shell:true})\"",
+    "start:win": "powershell -ExecutionPolicy Bypass -File start.ps1",
+    "start:unix": "bash start.sh",
+    "check-connections": "bash infra/scripts/check-connections.sh"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0"
+  }
+}

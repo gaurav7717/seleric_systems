@@ -1,0 +1,160 @@
+---
+description: Apply when working in apps/web — Next.js 14 App Router frontend
+globs: ["apps/web/**/*.ts", "apps/web/**/*.tsx"]
+alwaysApply: false
+---
+
+# Frontend Rules — Next.js 14 App Router
+
+## Architecture
+- App Router only — no Pages Router
+- Server Components by default; add `"use client"` only when needed (interactivity, hooks, browser APIs)
+- Data fetching in Server Components via `fetch()` with `cache` and `revalidate` options
+- Mutations via Server Actions — no separate API route for simple form submissions
+- Route handlers (`route.ts`) for: webhook receivers, streaming endpoints, WebSocket upgrades
+
+## Data fetching patterns
+
+### Server Component (preferred for static/revalidated data)
+```tsx
+// app/dashboard/page.tsx
+import { getCubeMetrics } from "@/lib/cube"
+
+export default async function DashboardPage() {
+  const metrics = await getCubeMetrics({ range: "7d" }) // fetched server-side
+  return <MetricsGrid metrics={metrics} />
+}
+```
+
+### Client Component with SWR (for live-updating data)
+```tsx
+"use client"
+import useSWR from "swr"
+
+export function LiveCampaignTable() {
+  const { data, error, isLoading } = useSWR("/api/campaigns", fetcher, {
+    refreshInterval: 60_000, // refresh every 60s
+  })
+  // ...
+}
+```
+
+### Streaming / WebSocket (for insight feed)
+```tsx
+"use client"
+import { useInsightStream } from "@/hooks/use-insight-stream"
+
+export function InsightFeed() {
+  const { insights, status } = useInsightStream() // connects to /api/insights/stream
+  // ...
+}
+```
+
+## Component organization
+```
+src/
+  app/                    # App Router pages and layouts
+    (auth)/               # Route group — auth pages
+    dashboard/            # P&L dashboard
+    insights/             # Insights feed
+    ads/                  # Ads intelligence
+    shopify/              # Shopify intelligence
+    chat/                 # Chat interface
+    control/              # Control panel
+    api/                  # Route handlers
+      signals/
+      insights/
+      campaigns/
+      approvals/
+      chat/
+  components/
+    ui/                   # Primitive components (button, badge, card, etc.)
+    charts/               # Recharts wrappers (MetricCard, SpendChart, etc.)
+    agents/               # Agent-specific components (InsightCard, ActionCard)
+    layout/               # Shell, sidebar, header
+  lib/
+    cube.ts               # Cube/Seleric API client
+    anthropic.ts          # Claude API client for chat interface
+    redis.ts              # Redis client (server-side only)
+    db.ts                 # Prisma client singleton
+    utils.ts              # Generic utilities
+  hooks/
+    use-insight-stream.ts
+    use-approval-queue.ts
+    use-chat.ts
+  types/
+    index.ts              # Re-exports from packages/shared-types
+```
+
+## Component rules
+- One component per file
+- Server Components: no hooks, no event handlers, no browser APIs
+- Client Components: keep them as small as possible — hoist data fetching to server
+- Never import server-only modules (`db`, `redis`) in Client Components
+- Use `next/image` for all images — never raw `<img>` tags
+- Use `next/link` for all internal navigation — never `<a href>`
+
+## API Route handlers
+```typescript
+// app/api/approvals/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server"
+import { db } from "@/lib/db"
+import { z } from "zod"
+
+const ApprovalBody = z.object({ decision: z.enum(["approve", "reject"]) })
+
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const body = ApprovalBody.safeParse(await req.json())
+  if (!body.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
+
+  const action = await db.pendingAction.findUnique({ where: { id: params.id } })
+  if (!action) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  if (action.expiresAt < new Date()) return NextResponse.json({ error: "Expired" }, { status: 410 })
+
+  // process...
+  return NextResponse.json({ status: "ok" })
+}
+```
+
+## Chat interface (Claude Code style)
+- Model: `claude-sonnet-4-20250514` via Anthropic API with streaming
+- Use Vercel AI SDK (`ai` package) for streaming responses
+- Always inject fresh business context at session start (P&L summary, active signals, top campaigns)
+- Show tool call traces inline in the chat — when Claude queries ClickHouse, show the query
+- Tool call display component: `<ToolCallTrace tool="clickhouse_query" input={...} result={...} />`
+- Chat history stored in React state only — not persisted (session-scoped like Claude Code)
+- Slash commands: parse `/pnl`, `/campaigns`, `/signals`, `/explain {signal_id}` client-side before sending to API
+
+## Metrics and charts
+- All chart data fetched server-side via Cube REST API (through `/api/metrics/*` routes)
+- Use `recharts` for all charts — consistent library, no mixing
+- Always show loading skeleton while data fetches (use `loading.tsx` files in App Router)
+- MetricCard component shows: label, value, delta (WoW), trend arrow — always round to 2 decimal places
+- Currency: use `Intl.NumberFormat` with `style: "currency"` — never manual `$` prefix
+- Percentages: always `(value * 100).toFixed(1) + "%"` — never raw decimals
+
+## Approval queue UI rules
+- Each action card must show in order: agent name → signal that triggered it → proposed action → expected outcome → risk badge
+- Risk badge colors: low = green, medium = amber, high = red
+- Approve/Reject buttons always require a confirmation step — no single-click irreversible actions
+- Show expiry countdown on each pending action
+- After approval/rejection: optimistic UI update immediately, revalidate from server
+
+## Environment variables (frontend)
+```
+NEXT_PUBLIC_API_URL=         # Orchestrator API base URL
+NEXT_PUBLIC_WS_URL=          # WebSocket server URL
+ANTHROPIC_API_KEY=           # Server-side only — for chat API route
+DATABASE_URL=                # Server-side only
+REDIS_URL=                   # Server-side only
+CUBE_API_URL=                # Cube REST endpoint
+CUBE_API_TOKEN=              # Cube auth token
+```
+Never expose `ANTHROPIC_API_KEY`, `DATABASE_URL`, or `REDIS_URL` to the client — no `NEXT_PUBLIC_` prefix on these.
+
+## Tailwind conventions
+- Dark mode: use `dark:` variants — the app supports both light and dark
+- Spacing: multiples of 4px (1=4px, 2=8px, 4=16px, 6=24px, 8=32px)
+- Colors: map to the semantic layer (slate for UI chrome, blue for info, green for success, amber for warning, red for danger)
+- Never use arbitrary values like `w-[347px]` — use the closest Tailwind scale value
+- Component variants: use `class-variance-authority (cva)` for multi-variant components

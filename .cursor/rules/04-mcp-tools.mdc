@@ -1,0 +1,168 @@
+---
+description: Apply when working on MCP server implementations or MCP tool calls
+globs: ["services/mcp-shopify/**/*.ts", "services/orchestrator/src/tools/**/*.py", "services/agents/**/tools.py"]
+alwaysApply: false
+---
+
+# MCP Tools Rules
+
+## MCP tool categories
+- **Pipeboard MCP** (already connected): Meta Ads + Google Ads read/write — use via API calls to `https://meta-ads.mcp.pipeboard.co`
+- **Seleric MCP** (already connected): Cube semantic layer — use for all metric queries
+- **Custom Shopify MCP** (build in Phase 1): Shopify Admin REST API wrapper — lives in `services/mcp-shopify`
+- **ClickHouse query tool**: Inline Python tool in orchestrator — wraps ClickHouse HTTP API with query guard
+
+## Custom Shopify MCP server — implementation rules
+
+### Server structure (Node.js with `@modelcontextprotocol/sdk`)
+```typescript
+// services/mcp-shopify/src/server.ts
+import { Server } from "@modelcontextprotocol/sdk/server/index.js"
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
+
+const server = new Server(
+  { name: "shopify-mcp", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+)
+
+// Register tools
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [GET_PRODUCTS_TOOL, GET_ORDERS_TOOL, GET_INVENTORY_TOOL, /* ... */]
+}))
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params
+  try {
+    return { content: [{ type: "text", text: JSON.stringify(await TOOL_MAP[name](args)) }] }
+  } catch (err) {
+    return { content: [{ type: "text", text: `Error: ${err.message}` }], isError: true }
+  }
+})
+```
+
+### Tool definition pattern — always include full JSON schema
+```typescript
+const GET_PRODUCTS_TOOL = {
+  name: "get_products",
+  description: "Fetch product list with inventory levels, pricing, and sales velocity. Use for product health monitoring.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      limit: { type: "number", description: "Max products to return (default 50, max 250)", default: 50 },
+      status: { type: "string", enum: ["active", "archived", "draft"], description: "Filter by product status" },
+      since_id: { type: "string", description: "Pagination cursor — product ID to start after" },
+    },
+    required: [],
+  },
+}
+```
+
+### Required Shopify MCP tools (build in this order)
+1. `get_products` — list products with inventory, price, status
+2. `get_orders` — orders with line items, financial status, fulfillment
+3. `get_inventory_levels` — stock by location
+4. `get_customers` — customer count, segments (requires permission)
+5. `get_analytics` — Shopify Analytics API (sessions, conversion, top products)
+6. `update_product` — change price/status (WRITE — Phase 3 only, requires `WRITE_ENABLED`)
+7. `create_discount` — create discount codes (WRITE — Phase 3 only)
+
+### Write tools — MUST check WRITE_ENABLED
+```typescript
+async function updateProduct(args: UpdateProductArgs) {
+  if (process.env.WRITE_ENABLED !== "true") {
+    throw new Error("Write operations disabled. Set WRITE_ENABLED=true to enable.")
+  }
+  // proceed with Shopify Admin API call
+}
+```
+
+## ClickHouse query tool (Python, inline in orchestrator)
+
+### Query guard — always validate before execution
+```python
+ALLOWED_QUERY_PREFIXES = ("SELECT", "WITH")
+MAX_QUERY_LENGTH = 4000
+FORBIDDEN_KEYWORDS = ("DROP", "DELETE", "TRUNCATE", "INSERT", "UPDATE", "ALTER", "CREATE")
+
+def validate_query(query: str) -> None:
+    q = query.strip().upper()
+    if not any(q.startswith(p) for p in ALLOWED_QUERY_PREFIXES):
+        raise QueryValidationError("Only SELECT and WITH queries allowed")
+    if len(query) > MAX_QUERY_LENGTH:
+        raise QueryValidationError(f"Query too long: {len(query)} chars (max {MAX_QUERY_LENGTH})")
+    for keyword in FORBIDDEN_KEYWORDS:
+        if keyword in q:
+            raise QueryValidationError(f"Forbidden keyword: {keyword}")
+```
+
+### ClickHouse tool definition for Claude
+```python
+CLICKHOUSE_TOOL = {
+    "name": "clickhouse_query",
+    "description": "Execute a SELECT query against the ClickHouse data warehouse. "
+                   "Available tables: ad_spend (campaign_id, date, spend, impressions, clicks, conversions), "
+                   "orders (order_id, created_at, total_price, product_ids, customer_id, channel), "
+                   "products (product_id, title, sku, inventory_qty, price), "
+                   "sessions (date, channel, sessions, add_to_cart, purchases). "
+                   "Always use date filters. Max 10,000 rows returned.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Valid ClickHouse SQL SELECT query"},
+            "timeout_seconds": {"type": "number", "default": 30},
+        },
+        "required": ["query"],
+    },
+}
+```
+
+## Pipeboard MCP — calling patterns from Python agents
+
+### Making Pipeboard tool calls via HTTP
+```python
+import httpx
+
+PIPEBOARD_BASE = "https://meta-ads.mcp.pipeboard.co"
+
+async def call_pipeboard_tool(tool_name: str, arguments: dict) -> dict:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{PIPEBOARD_BASE}/tools/call",
+            json={"name": tool_name, "arguments": arguments},
+            headers={"Authorization": f"Bearer {os.getenv('PIPEBOARD_TOKEN')}"},
+        )
+        response.raise_for_status()
+        result = response.json()
+        if result.get("isError"):
+            raise ToolCallError(f"Pipeboard tool error: {result['content'][0]['text']}")
+        return result
+```
+
+### Read-only Pipeboard tools to register with agents (Phase 1-2)
+- `get_campaigns` — campaign list with status, budget, spend
+- `get_adsets` — adset details with targeting, bid, spend
+- `get_ads` — ad creative performance
+- `get_insights` — performance metrics (ROAS, CPM, CTR, CPA) by date range
+- `get_account_info` — account spending limits, payment method status
+
+### Write Pipeboard tools (Phase 3, requires `WRITE_ENABLED=true`)
+- `update_campaign` — change status, budget, name
+- `update_adset` — change bid, budget, targeting
+- `create_budget_schedule` — schedule budget changes
+
+## Tool result handling — standard pattern
+All tool results must be:
+1. JSON-serializable (for logging and audit trail)
+2. Bounded in size — truncate large result sets, never return > 50 rows raw to an agent
+3. Structured with a `status` field: `"success"` or `"error"`
+4. Logged to `tool_calls_log` on the AgentResult — full audit of every tool call made
+
+```python
+def format_tool_result(data: any, tool_name: str) -> dict:
+    return {
+        "status": "success",
+        "tool": tool_name,
+        "row_count": len(data) if isinstance(data, list) else None,
+        "data": data[:50] if isinstance(data, list) else data,  # cap at 50 rows
+    }
+```

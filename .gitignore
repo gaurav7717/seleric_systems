@@ -1,0 +1,98 @@
+# ═══════════════════════════════════════════════════════════
+# Multi-Agent Business Intelligence System
+# ═══════════════════════════════════════════════════════════
+
+# ── Environment & secrets ─────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.uv/
+dist/
+build/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.hypothesis/
+.tox/
+.nox/
+pip-wheel-metadata/
+
+# ── Node / TypeScript ─────────────────────────────────────
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+apps/web/next-env.d.ts
+.vercel/
+.swc/
+
+# ── Prisma ────────────────────────────────────────────────
+packages/db/node_modules/
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ── IDE / editors ─────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Logs & runtime ────────────────────────────────────────
+*.log
+logs/
+pino-*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Docker (local volumes) ────────────────────────────────
+postgres_data/
+redis_data/
+
+# ── Test & coverage output ────────────────────────────────
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/
+.nyc_output/
+
+# ── Misc build artifacts ──────────────────────────────────
+*.local
+.cache/
+tmp/
+temp/
+*.tmp

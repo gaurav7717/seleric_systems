@@ -1,0 +1,140 @@
+---
+description: Apply when working in services/orchestrator — LangGraph state machine, context assembly, agent routing
+alwaysApply: false
+---
+# Orchestrator Service Rules
+
+## What this service does
+The orchestrator is the central brain. It receives a fired signal (entity + context snapshot), assembles full context (Redis session + vector search + Cube metrics), routes to the correct agent(s), collects ActionProposals, routes them through the Guardrail, and either executes or queues them.
+
+## LangGraph state machine
+
+### State definition — always use TypedDict
+```python
+from typing import TypedDict, Optional, Literal
+from langgraph.graph import StateGraph
+
+class OrchestratorState(TypedDict):
+    # Input
+    signal_id: str
+    entity_type: Literal["campaign", "adset", "product", "store"]
+    entity_id: str
+    signal_type: str
+    context_snapshot: dict
+
+    # Assembled context
+    session_memory: Optional[dict]
+    similar_insights: Optional[list[dict]]
+    current_metrics: Optional[dict]
+    assembled_prompt: Optional[str]
+
+    # Agent outputs
+    insight: Optional[dict]          # InsightSchema
+    action_proposals: Optional[list[dict]]  # List[ActionProposalSchema]
+
+    # Guardrail output
+    approved_actions: Optional[list[dict]]
+    queued_actions: Optional[list[dict]]
+    blocked_actions: Optional[list[dict]]
+
+    # Execution result
+    execution_results: Optional[list[dict]]
+    errors: list[str]
+```
+
+### Node naming convention
+- Node functions named `node_{action}` e.g. `node_assemble_context`, `node_route_agents`
+- Edge conditions named `should_{condition}` e.g. `should_run_meta_agent`
+- All nodes are async functions: `async def node_name(state: OrchestratorState) -> dict`
+- Nodes return ONLY the keys they modify — LangGraph merges state automatically
+- Never mutate state directly — always return a new dict with changed keys
+
+### Standard node return pattern
+```python
+async def node_assemble_context(state: OrchestratorState) -> dict:
+    try:
+        session = await redis_client.get_session(state["entity_id"])
+        metrics = await cube_client.get_metrics(state["entity_id"])
+        similar = await vector_store.search_similar(state["context_snapshot"])
+        return {
+            "session_memory": session,
+            "current_metrics": metrics,
+            "similar_insights": similar,
+        }
+    except Exception as e:
+        logger.error("context_assembly_failed", error=str(e), signal_id=state["signal_id"])
+        return {"errors": state.get("errors", []) + [f"context_assembly: {str(e)}"]}
+```
+
+## Context assembly — always follow this order
+1. Load Redis session for entity (TTL 24h, key: `entity:{type}:{id}:session`)
+2. Vector search for similar past situations (top-5 by cosine similarity)
+3. Fetch Cube metrics for entity (ROAS, spend, revenue, CAC for last 7d/30d)
+4. Compose prompt with: signal details + metrics + session context + similar insights
+5. Keep total assembled context under 8000 tokens — truncate similar insights first if over limit
+
+## Prompt construction
+- Prompts live in `src/prompts/` directory, one file per agent type
+- Use Jinja2 templates — never f-string large prompts
+- Always include: signal type, entity name, key metrics (quantified), recent history, task instruction
+- Prompt templates have a `render(context: dict) -> str` method
+- Never include raw SQL or internal system details in prompts
+
+## Agent routing logic
+```python
+SIGNAL_AGENT_MAP = {
+    "roas_drop": ["insight_agent", "meta_agent"],
+    "spend_spike": ["insight_agent", "meta_agent"],
+    "revenue_drop": ["insight_agent", "shopify_agent"],
+    "stock_critical": ["shopify_agent"],
+    "cpa_spike": ["insight_agent", "meta_agent"],
+    "conversion_drop": ["insight_agent", "shopify_agent"],
+    "budget_exhausted": ["meta_agent"],
+}
+# Always run guardrail_agent last, after all specialist agents
+```
+
+## ActionProposal schema — every agent must return this
+```python
+from pydantic import BaseModel
+from typing import Literal
+
+class ActionProposal(BaseModel):
+    proposal_id: str          # uuid4
+    signal_id: str
+    entity_type: str
+    entity_id: str
+    agent: str                # "meta_agent" | "shopify_agent" etc.
+    action_type: str          # "pause_campaign" | "shift_budget" | "flag_product" etc.
+    action_payload: dict      # API-ready payload for execution
+    rationale: str            # Human-readable explanation (shown in approval UI)
+    expected_outcome: str     # "Expected ROAS improvement of ~15% over 48h"
+    confidence: float         # 0.0 to 1.0
+    risk_level: Literal["low", "medium", "high"]
+    requires_approval: bool   # Set by Guardrail, not by agent
+```
+
+## LLM calls within the orchestrator
+- Always use `from src.llm.client import chat_completion` — never import `anthropic` or `openai` directly in agents
+- Model is selected via `LLM_MODEL` env var; `chat_completion()` reads it automatically
+- LiteLLM normalises all providers to OpenAI response format — parse via `response.choices[0].message`
+- Max tokens: 4096 for agent responses (structured JSON output)
+- Always request structured output via a tool definition or explicit JSON schema in the prompt
+- Handle rate limits with exponential backoff: start 1s, max 32s, max 5 retries
+
+## FastAPI endpoint pattern
+```python
+@router.post("/signal", response_model=OrchestratorResponse)
+async def handle_signal(signal: SignalSchema, background_tasks: BackgroundTasks):
+    trace_id = str(uuid4())
+    logger.info("signal_received", signal_id=signal.id, trace_id=trace_id)
+    background_tasks.add_task(run_orchestrator, signal, trace_id)
+    return OrchestratorResponse(status="queued", trace_id=trace_id)
+# Signals are always processed async — never block the HTTP response waiting for agents
+```
+
+## Memory clients
+- Redis client: singleton in `src/memory/redis_client.py`, use `aioredis`
+- Vector store client: singleton in `src/memory/vector_client.py`, use `asyncpg` + pgvector
+- Cube client: singleton in `src/memory/cube_client.py`, wraps Seleric MCP or REST API
+- All clients must implement health check methods for the `/health` endpoint

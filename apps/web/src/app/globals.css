@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-stone-50 text-stone-900 antialiased font-sans;
+}
+
+/* COGS simulation range sliders */
+input.sim-range {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input.sim-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid rgb(46 125 50);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+  margin-top: -5px;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+input.sim-range:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.08);
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.2);
+}
+
+input.sim-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid rgb(46 125 50);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+}
+
+input.sim-range:focus-visible {
+  outline: none;
+}
+
+input.sim-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.35), 0 1px 4px rgba(0, 0, 0, 0.15);
+}

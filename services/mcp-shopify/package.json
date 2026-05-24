@@ -1,0 +1,26 @@
+{
+  "name": "@multiagent/mcp-shopify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@shopify/shopify-api": "^9.7.0",
+
+    "zod": "^3.23.0",
+    "pino": "^9.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.5.0",
+    "tsx": "^4.16.0",
+    "vitest": "^1.6.0"
+  }
+}

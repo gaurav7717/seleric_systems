@@ -1,0 +1,132 @@
+# Guardrail Rules Configuration
+# Edit this file to change agent behavior limits — no code changes required.
+# Changes take effect on the next signal processed.
+#
+# Classification: AUTO = execute immediately, QUEUE = founder approval, BLOCK = never execute
+
+version: "1.0"
+
+# ── Global hard limits — always BLOCK regardless of other rules ──────────────
+hard_blocks:
+  - id: no_rationale
+    description: "Any action without a rationale string"
+    condition: "action.rationale == null or len(action.rationale) < 20"
+    message: "Action rejected: no rationale provided"
+
+  - id: budget_change_too_large
+    description: "Single budget change exceeding 50%"
+    condition: "action.action_type in ['shift_budget', 'update_campaign'] and abs(action.budget_delta_pct) > 50"
+    message: "Budget change exceeds 50% hard limit"
+
+  - id: pause_with_active_orders
+    description: "Pause a campaign that has active Shopify orders in last 2h"
+    condition: "action.action_type == 'pause_campaign' and entity.active_orders_2h > 0"
+    message: "Cannot pause campaign with active orders in the last 2 hours"
+
+  - id: write_disabled
+    description: "Block all write actions when WRITE_ENABLED is false"
+    condition: "env.WRITE_ENABLED != 'true' and action.action_type in WRITE_ACTION_TYPES"
+    message: "Write operations disabled. Set WRITE_ENABLED=true to enable."
+
+# ── AUTO rules — execute immediately, no founder review ─────────────────────
+auto_rules:
+  - id: auto_pause_low_roas_low_spend
+    description: "Auto-pause a campaign with sustained ROAS below threshold and low daily spend"
+    conditions:
+      action_type: "pause_campaign"
+      roas_below_threshold_hours: 48     # ROAS must be below threshold for at least this long
+      roas_threshold: 1.0                # ROAS must be below this value
+      max_daily_spend_usd: 200           # Only auto-pause if daily spend is below this
+    message: "Auto-paused: ROAS below 1.0 for 48+ hours, spend under $200/day"
+
+  - id: auto_budget_shift_small
+    description: "Auto-execute small budget reductions on underperforming adsets"
+    conditions:
+      action_type: "shift_budget"
+      max_budget_delta_pct: 10           # Maximum change allowed for auto-execution
+      max_daily_spend_usd: 500           # Only auto-execute if current spend is below this
+      direction: "decrease"             # Only auto-execute budget decreases (not increases)
+    message: "Auto-executed: budget shift ≤10%, spend under $500/day"
+
+# ── QUEUE rules — require founder approval ───────────────────────────────────
+queue_rules:
+  - id: budget_increase
+    description: "Any budget increase regardless of amount"
+    condition: "action.action_type == 'shift_budget' and action.budget_delta_pct > 0"
+    message: "Budget increases require founder approval"
+
+  - id: large_budget_decrease
+    description: "Budget decrease exceeding 10%"
+    condition: "action.action_type == 'shift_budget' and action.budget_delta_pct < -10"
+    message: "Budget change >10% requires founder approval"
+
+  - id: high_spend_pause
+    description: "Pause a campaign with significant daily spend"
+    condition: "action.action_type == 'pause_campaign' and entity.daily_spend_usd >= 200"
+    message: "Pausing campaign with $200+/day spend requires approval"
+
+  - id: new_campaign_or_adset
+    description: "Creating any new campaign or adset"
+    condition: "action.action_type in ['create_campaign', 'create_adset']"
+    message: "New campaign/adset creation requires approval"
+
+  - id: product_price_change
+    description: "Any product price modification"
+    condition: "action.action_type == 'update_product' and 'price' in action.action_payload"
+    message: "Product price changes require approval"
+
+  - id: discount_creation
+    description: "Creating any discount code"
+    condition: "action.action_type == 'create_discount'"
+    message: "Discount creation requires approval"
+
+  - id: high_confidence_required
+    description: "Actions with confidence below threshold always go to queue"
+    condition: "action.confidence < 0.60"
+    message: "Action confidence below 60% — queued for review"
+
+  - id: high_risk_level
+    description: "High risk actions always go to queue"
+    condition: "action.risk_level == 'high'"
+    message: "High-risk action queued for founder review"
+
+# ── Thresholds used by agent rule evaluation ─────────────────────────────────
+thresholds:
+  roas:
+    critical_below: 1.0               # ROAS below this = critical signal
+    warning_below: 1.5                # ROAS below this = warning signal
+    good_above: 2.5                   # ROAS above this = performing well
+
+  spend:
+    daily_cap_per_campaign_usd: 2000  # Alert if single campaign exceeds this
+    auto_execute_max_usd: 500         # Max daily spend for auto-execute to apply
+    pause_auto_max_usd: 200           # Max daily spend for auto-pause
+
+  cpa:
+    critical_multiplier: 2.5         # Alert if CPA is 2.5x the target
+    warning_multiplier: 1.5          # Alert if CPA is 1.5x the target
+
+  inventory:
+    stockout_risk_days: 7            # Flag if stock will run out within 7 days at current velocity
+    critical_stock_units: 10         # Flag if stock drops below this absolute number
+
+  budget_delta:
+    auto_max_pct: 10                 # Max % change for auto-execution
+    queue_max_pct: 50                # Max % change allowed at all (over this = BLOCK)
+
+# ── Write action types — checked by write_disabled hard block ────────────────
+write_action_types:
+  - pause_campaign
+  - unpause_campaign
+  - shift_budget
+  - update_adset
+  - create_campaign
+  - create_adset
+  - update_product
+  - create_discount
+  - update_campaign
+
+# ── Approval expiry ───────────────────────────────────────────────────────────
+approval:
+  expiry_hours: 48                   # Pending actions expire after this many hours
+  notification_reminder_hours: 24   # Send reminder if not actioned after this many hours

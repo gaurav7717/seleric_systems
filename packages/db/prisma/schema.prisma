@@ -1,0 +1,180 @@
+// packages/db/prisma/schema.prisma
+// Single source of truth for all database models.
+// Run: pnpm db:generate to regenerate the Prisma client after changes.
+// Run: pnpm db:migrate to apply migrations.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────
+
+enum InsightSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ActionClass {
+  AUTO
+  QUEUE
+  BLOCK
+}
+
+enum ActionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXECUTED
+  EXPIRED
+  FAILED
+}
+
+enum EntityType {
+  CAMPAIGN
+  ADSET
+  PRODUCT
+  STORE
+}
+
+// ── Core Models ────────────────────────────────────────────────────────────
+
+model Signal {
+  id              String     @id @default(uuid())
+  entityType      EntityType
+  entityId        String
+  signalType      String
+  contextSnapshot Json
+  traceId         String
+  firedAt         DateTime   @default(now())
+
+  insights        Insight[]
+  pendingActions  PendingAction[]
+  auditLogs       AuditLog[]
+
+  @@index([entityType, entityId])
+  @@index([signalType])
+  @@index([firedAt])
+}
+
+model Insight {
+  id          String          @id @default(uuid())
+  signalId    String
+  signal      Signal          @relation(fields: [signalId], references: [id])
+  severity    InsightSeverity
+  title       String          @db.VarChar(200)
+  what        String          @db.Text
+  why         String          @db.Text
+  evidence    Json            // String[]
+  confidence  Float
+  agent       String          @db.VarChar(50)
+
+  // pgvector embedding — generated async after insert by embed-insight worker job
+  embedding   Unsupported("vector(1536)")?
+
+  createdAt   DateTime        @default(now())
+  outcomes    InsightOutcome[]
+
+  // Founder interactions
+  dismissedAt  DateTime?
+  snoozedUntil DateTime?
+
+  @@index([signalId])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model PendingAction {
+  id              String       @id @default(uuid())
+  signalId        String
+  signal          Signal       @relation(fields: [signalId], references: [id])
+
+  agent           String       @db.VarChar(50)
+  actionType      String       @db.VarChar(100)
+  actionPayload   Json         // API-ready payload for execution
+  rationale       String       @db.Text
+  expectedOutcome String       @db.Text
+  confidence      Float
+  riskLevel       RiskLevel
+  classification  ActionClass
+  status          ActionStatus @default(PENDING)
+
+  // Guardrail metadata
+  guardrailRule   String?      // Which rule triggered this classification
+
+  // Approval flow
+  approvalToken   String?      @unique  // HMAC-signed token for approve link
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedReason  String?      @db.Text
+  rejectedAt      DateTime?
+
+  // Execution
+  executedAt      DateTime?
+  executionResult Json?
+  executionError  String?
+
+  expiresAt       DateTime
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([status])
+  @@index([signalId])
+  @@index([expiresAt])
+  @@index([classification, status])
+}
+
+model InsightOutcome {
+  id           String   @id @default(uuid())
+  insightId    String
+  insight      Insight  @relation(fields: [insightId], references: [id])
+
+  measuredAt   DateTime
+  windowHours  Int      // 24 | 48 | 168 (7 days)
+  metricDeltas Json     // { roas_delta, spend_delta, revenue_delta, cac_delta }
+
+  // -1.0 (very bad outcome) to 1.0 (very good outcome)
+  outcomeScore Float
+
+  createdAt    DateTime @default(now())
+
+  @@index([insightId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  signalId  String?
+  signal    Signal?  @relation(fields: [signalId], references: [id])
+
+  event     String   @db.VarChar(100)  // e.g. "action_blocked", "action_approved", "action_executed"
+  actor     String   @db.VarChar(100)  // "system", "founder@email.com", agent name
+  payload   Json                       // Event-specific details
+  createdAt DateTime @default(now())
+
+  @@index([event])
+  @@index([createdAt])
+}
+
+// ── Agent Configuration ───────────────────────────────────────────────────
+
+model AgentConfig {
+  id        String   @id @default(uuid())
+  agentName String   @unique @db.VarChar(50)
+  enabled   Boolean  @default(true)
+  config    Json     // Agent-specific config overrides
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}

@@ -1,0 +1,107 @@
+"use client"
+
+import {
+  formatInr,
+  formatCount,
+  formatRatio,
+  prettyLabel,
+  valueColor,
+} from "@/lib/chat/visualization"
+import type { NormalizedRow } from "@/lib/chat/visualization"
+import { analyzeColumns } from "@/lib/chat/visualization/column-semantics"
+import { aggregatePeriod } from "@/lib/chat/visualization/aggregate"
+import { pickTableColumns } from "@/lib/chat/visualization/generate-compiled-insights"
+import type { CubeRow } from "@/lib/chat/visualization/column-semantics"
+
+function formatCell(key: string, val: unknown): string {
+  if (val == null) return "—"
+  if (/ltv.?cac/i.test(key)) return formatRatio(val)
+  if (/orders?|count/i.test(key)) return formatCount(val)
+  if (/pct|margin|rate/i.test(key)) return `${Number(val).toFixed(1)}%`
+  const n = Number(val)
+  if (!isNaN(n) && /revenue|spend|profit|cogs|cac|ltv|cost|aov|amount/i.test(key)) {
+    return formatInr(n, { signed: /profit|net/i.test(key) })
+  }
+  if (!isNaN(n)) return n.toLocaleString("en-IN", { maximumFractionDigits: 2 })
+  if (typeof val === "string" && val.includes("T")) return val.slice(0, 10)
+  return String(val)
+}
+
+export function InsightDataTable({
+  rows,
+  title,
+  showSummary = true,
+}: {
+  rows: NormalizedRow[] | CubeRow[]
+  title?: string
+  showSummary?: boolean
+}) {
+  if (!rows.length) return null
+
+  const picked = pickTableColumns(rows as CubeRow[])
+  const headers = (
+    picked.length
+      ? picked
+      : Object.keys(rows[0]).filter((k) => !k.endsWith("__label") && !/surrogate|\.id$/i.test(k))
+  )
+  const profile = analyzeColumns(rows as CubeRow[])
+  const summary = showSummary ? aggregatePeriod(rows as CubeRow[]) : null
+
+  return (
+    <div className="my-3">
+      {title && (
+        <h4 className="text-[10px] font-semibold uppercase tracking-widest text-stone-500 mb-2 font-sans">
+          {title}
+        </h4>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm font-serif border-collapse">
+          <thead>
+            <tr className="border-b border-stone-200">
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="py-2 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-stone-500 font-sans whitespace-nowrap"
+                >
+                  {prettyLabel(h)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(rows as NormalizedRow[]).map((row, i) => (
+              <tr
+                key={i}
+                className={`border-b border-stone-100 ${i % 2 === 1 ? "bg-stone-50/80" : ""}`}
+              >
+                {headers.map((h) => {
+                  const val = row[h]
+                  const n = Number(val)
+                  const colorClass =
+                    !isNaN(n) && typeof val === "number" ? valueColor(h, n) : "text-stone-800"
+                  return (
+                    <td
+                      key={h}
+                      className={`py-2 px-2 text-right whitespace-nowrap ${colorClass}`}
+                    >
+                      {formatCell(h, val)}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+            {summary && (
+              <tr className="border-t-2 border-stone-300 bg-stone-100/60 font-semibold">
+                {headers.map((h, i) => (
+                  <td key={h} className="py-2 px-2 text-right text-stone-900">
+                    {i === 0 ? "Total / avg" : summary[h] != null ? formatCell(h, summary[h]) : "—"}
+                  </td>
+                ))}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

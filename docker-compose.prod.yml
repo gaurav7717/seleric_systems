@@ -1,0 +1,32 @@
+version: "3.9"
+
+# Production overrides — use with: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  orchestrator:
+    environment:
+      - ENVIRONMENT=production
+    volumes: []
+
+  worker:
+    environment:
+      - ENVIRONMENT=production
+    volumes: []
+
+  mcp-shopify:
+    environment:
+      - ENVIRONMENT=production
+    volumes: []
+
+  web:
+    build:
+      target: production
+    environment:
+      - NODE_ENV=production
+    volumes: []
+
+  redis-insight:
+    profiles: ["tools"]
+
+  pgadmin:
+    profiles: ["tools"]

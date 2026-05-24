@@ -1,0 +1,5 @@
+packages:
+  - "apps/*"
+  - "services/worker"
+  - "services/mcp-shopify"
+  - "packages/*"

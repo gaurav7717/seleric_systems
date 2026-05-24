@@ -1,0 +1,236 @@
+---
+description: Apply when working with databases — ClickHouse, Postgres/pgvector, Redis
+globs: ["packages/db/**/*", "services/orchestrator/src/memory/**/*.py", "services/worker/src/**/*.ts", "apps/web/src/lib/db.ts"]
+alwaysApply: false
+---
+
+# Database Rules
+
+## Databases in this system
+| Database | Purpose | Access pattern |
+|---|---|---|
+| ClickHouse | Ad spend, orders, sessions, GMV — the analytics warehouse | Read-only from agents, append-only from ingestion |
+| Postgres | Approval queue, outcome store, audit log, vector embeddings | Read/write from orchestrator + frontend |
+| Redis | Session memory, metric cache, BullMQ job queue | Read/write from orchestrator + worker |
+
+## Prisma schema conventions (Postgres)
+
+### Model naming
+- Models: `PascalCase` singular (`PendingAction`, not `pending_actions`)
+- Fields: `camelCase`
+- Enums: `PascalCase` for type, `UPPER_SNAKE_CASE` for values
+
+### Required models
+```prisma
+// packages/db/prisma/schema.prisma
+
+model Signal {
+  id            String   @id @default(uuid())
+  entityType    String
+  entityId      String
+  signalType    String
+  contextSnapshot Json
+  firedAt       DateTime @default(now())
+  insights      Insight[]
+  pendingActions PendingAction[]
+}
+
+model Insight {
+  id          String   @id @default(uuid())
+  signalId    String
+  signal      Signal   @relation(fields: [signalId], references: [id])
+  severity    InsightSeverity
+  title       String
+  what        String
+  why         String
+  evidence    Json     // string[]
+  confidence  Float
+  agent       String
+  embedding   Unsupported("vector(1536)")?  // pgvector
+  createdAt   DateTime @default(now())
+  outcomes    InsightOutcome[]
+}
+
+model PendingAction {
+  id              String       @id @default(uuid())
+  signalId        String
+  signal          Signal       @relation(fields: [signalId], references: [id])
+  agent           String
+  actionType      String
+  actionPayload   Json
+  rationale       String
+  expectedOutcome String
+  confidence      Float
+  riskLevel       RiskLevel
+  classification  ActionClass
+  status          ActionStatus @default(PENDING)
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedReason  String?
+  executedAt      DateTime?
+  executionResult Json?
+  expiresAt       DateTime
+  createdAt       DateTime     @default(now())
+}
+
+model InsightOutcome {
+  id          String   @id @default(uuid())
+  insightId   String
+  insight     Insight  @relation(fields: [insightId], references: [id])
+  measuredAt  DateTime
+  metricDeltas Json    // { roas_delta: 0.15, spend_delta: -50, ... }
+  outcomeScore Float   // -1.0 to 1.0: did the insight lead to a good outcome?
+}
+
+enum InsightSeverity { CRITICAL WARNING INFO }
+enum RiskLevel { LOW MEDIUM HIGH }
+enum ActionClass { AUTO QUEUE BLOCK }
+enum ActionStatus { PENDING APPROVED REJECTED EXECUTED EXPIRED }
+```
+
+### pgvector setup
+```sql
+-- Run once on Postgres instance
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE INDEX ON "Insight" USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+```
+
+### Prisma client singleton (apps/web and services)
+```typescript
+// packages/db/src/client.ts
+import { PrismaClient } from "@prisma/client"
+declare global { var __prisma: PrismaClient | undefined }
+export const db = globalThis.__prisma ?? new PrismaClient({ log: ["error"] })
+if (process.env.NODE_ENV !== "production") globalThis.__prisma = db
+```
+
+## Redis key schema — never deviate from this
+
+| Key pattern | Type | TTL | Purpose |
+|---|---|---|---|
+| `entity:{type}:{id}:session` | Hash | 24h | Orchestrator session state |
+| `entity:{type}:{id}:metrics` | String (JSON) | 5min | Cached Cube metrics |
+| `signal:{id}:status` | String | 1h | Signal processing status |
+| `approval:{id}:token` | String | 48h | Signed approval link token |
+| `chat:{session_id}:history` | List | 2h | Chat message history |
+| `cache:cube:{hash}` | String (JSON) | 5min | Cube query result cache |
+| `ratelimit:{service}:{key}` | String | 1min | Rate limiting counters |
+
+### Redis client (Python)
+```python
+# services/orchestrator/src/memory/redis_client.py
+import aioredis
+import os
+
+_client: aioredis.Redis | None = None
+
+async def get_client() -> aioredis.Redis:
+    global _client
+    if _client is None:
+        _client = await aioredis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
+    return _client
+
+async def get_session(entity_type: str, entity_id: str) -> dict | None:
+    client = await get_client()
+    data = await client.get(f"entity:{entity_type}:{entity_id}:session")
+    return json.loads(data) if data else None
+
+async def set_session(entity_type: str, entity_id: str, session: dict, ttl_seconds: int = 86400):
+    client = await get_client()
+    await client.setex(f"entity:{entity_type}:{entity_id}:session", ttl_seconds, json.dumps(session))
+```
+
+## ClickHouse query patterns
+
+### Always filter by date — ClickHouse scans are expensive
+```sql
+-- Good: date partition filter
+SELECT campaign_id, sum(spend), sum(conversions)
+FROM ad_spend
+WHERE date >= today() - 7
+GROUP BY campaign_id
+
+-- Bad: no date filter (full table scan)
+SELECT * FROM ad_spend WHERE campaign_id = 'abc'
+```
+
+### Use parameterized queries via ClickHouse HTTP API
+```python
+import httpx
+
+async def query_clickhouse(sql: str, params: dict = {}) -> list[dict]:
+    validate_query(sql)  # Always validate first
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{os.getenv('CLICKHOUSE_URL')}/query",
+            json={"query": sql, "params": params, "format": "JSONEachRow"},
+            auth=(os.getenv("CLICKHOUSE_USER"), os.getenv("CLICKHOUSE_PASSWORD")),
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return [json.loads(line) for line in response.text.strip().split("\n") if line]
+```
+
+### Key ClickHouse tables (document these for agent context)
+```sql
+-- ad_spend: daily ad performance
+CREATE TABLE ad_spend (
+  date Date,
+  account_id String,
+  campaign_id String,
+  adset_id String,
+  ad_id String,
+  platform Enum('meta', 'google'),
+  spend Float64,
+  impressions UInt64,
+  clicks UInt64,
+  conversions UInt32,
+  revenue Float64
+) ENGINE = MergeTree() PARTITION BY toYYYYMM(date) ORDER BY (date, campaign_id);
+
+-- orders: Shopify orders
+CREATE TABLE orders (
+  order_id String,
+  created_at DateTime,
+  total_price Float64,
+  subtotal_price Float64,
+  discount_amount Float64,
+  product_ids Array(String),
+  customer_id String,
+  channel String,  -- 'web', 'mobile', 'pos'
+  utm_source String,
+  utm_campaign String
+) ENGINE = MergeTree() ORDER BY (created_at, customer_id);
+```
+
+## BullMQ job definitions (TypeScript, services/worker)
+```typescript
+// services/worker/src/jobs/execute-action.ts
+import { Job } from "bullmq"
+import { db } from "@multiagent/db"
+
+export interface ExecuteActionJob {
+  pendingActionId: string
+  approvedBy: string
+}
+
+export async function processExecuteAction(job: Job<ExecuteActionJob>) {
+  const action = await db.pendingAction.findUnique({
+    where: { id: job.data.pendingActionId },
+  })
+  if (!action || action.status !== "APPROVED") {
+    throw new Error(`Action ${job.data.pendingActionId} not in APPROVED state`)
+  }
+  // Execute via MCP tool call, update status, log outcome
+}
+```
+
+### Queue names — use these constants
+```typescript
+export const QUEUES = {
+  EXECUTE_ACTION: "execute-action",
+  SEND_NOTIFICATION: "send-notification",
+  RECORD_OUTCOME: "record-outcome",
+  EMBED_INSIGHT: "embed-insight",
+} as const
+```
