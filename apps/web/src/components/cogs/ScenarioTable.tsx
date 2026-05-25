@@ -22,7 +22,7 @@ export function ScenarioTable({
   currentCogs,
 }: {
   rows: ScenarioRow[]
-  currentCogs: number
+  currentCogs: number  // product cost only (cogs − shipping − packaging)
 }) {
   return (
     <section className="rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 p-3.5 shadow-sm dark:shadow-none">

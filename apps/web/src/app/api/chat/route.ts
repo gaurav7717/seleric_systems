@@ -1,11 +1,53 @@
-import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai"
+import { streamText, convertToModelMessages, UIMessage, stepCountIs, generateText } from "ai"
 import { loadSchema } from "@/lib/cube-client"
 import { buildChatSystemPrompt } from "@/lib/chat/system-prompt"
 import { resolveChatModel, resolveFallbackModel, getChatProviderInfo } from "@/lib/chat/model"
+import type { ResolvedChatModel } from "@/lib/chat/model"
 import { createChatTools } from "@/lib/chat/tools"
-import { serverLog } from "@/lib/server-log"
+import { serializeError, serverLog } from "@/lib/server-log"
 
-function buildStreamOptions(model: ReturnType<typeof resolveChatModel>, systemPrompt: string, messages: Awaited<ReturnType<typeof convertToModelMessages>>, tools: ReturnType<typeof createChatTools>) {
+const MODEL_HEALTH_TTL_MS = 60_000
+let healthyPrimaryKey: string | null = null
+let healthyPrimaryUntil = 0
+let failedPrimaryKey: string | null = null
+let failedPrimaryUntil = 0
+
+function modelKey(model: ResolvedChatModel) {
+  return `${model.provider}:${model.modelId}`
+}
+
+async function resolveAvailableModel(primary: ResolvedChatModel, fallback: ResolvedChatModel | null) {
+  if (!fallback) return primary
+
+  const now = Date.now()
+  const primaryKey = modelKey(primary)
+  if (healthyPrimaryKey === primaryKey && healthyPrimaryUntil > now) return primary
+  if (failedPrimaryKey === primaryKey && failedPrimaryUntil > now) return fallback
+
+  try {
+    await generateText({
+      model: primary.model,
+      prompt: "Reply with OK.",
+      maxOutputTokens: 4,
+      maxRetries: 0,
+      temperature: 0,
+    })
+    healthyPrimaryKey = primaryKey
+    healthyPrimaryUntil = Date.now() + MODEL_HEALTH_TTL_MS
+    return primary
+  } catch (error) {
+    failedPrimaryKey = primaryKey
+    failedPrimaryUntil = Date.now() + MODEL_HEALTH_TTL_MS
+    serverLog("warn", "primary model preflight failed, switching to fallback", {
+      primary: primaryKey,
+      fallback: modelKey(fallback),
+      error: serializeError(error),
+    })
+    return fallback
+  }
+}
+
+function buildStreamOptions(model: ResolvedChatModel["model"], systemPrompt: string, messages: Awaited<ReturnType<typeof convertToModelMessages>>, tools: ReturnType<typeof createChatTools>) {
   return {
     model,
     system: systemPrompt,
@@ -44,16 +86,26 @@ export async function POST(req: Request) {
   const convertedMessages = await convertToModelMessages(messages)
   const tools = createChatTools(schema)
   const primary = resolveChatModel()
-  const fallback = resolveFallbackModel()
+  const fallback = resolveFallbackModel(primary)
+  const active = await resolveAvailableModel(primary, fallback)
+  serverLog("info", "chat model selected", {
+    provider: active.provider,
+    modelId: active.modelId,
+    role: active.role,
+    fallbackModelId: fallback?.modelId ?? null,
+  })
 
   try {
-    const result = streamText(buildStreamOptions(primary, systemPrompt, convertedMessages, tools))
+    const result = streamText(buildStreamOptions(active.model, systemPrompt, convertedMessages, tools))
     return result.toUIMessageStreamResponse()
   } catch (e) {
-    if (!fallback) throw e
-    const msg = e instanceof Error ? e.message : String(e)
-    serverLog("warn", "primary model failed, switching to fallback", msg)
-    const result = streamText(buildStreamOptions(fallback, systemPrompt, convertedMessages, tools))
+    if (!fallback || active.role === "fallback") throw e
+    serverLog("warn", "primary model failed before stream opened, switching to fallback", {
+      primary: modelKey(active),
+      fallback: modelKey(fallback),
+      error: serializeError(e),
+    })
+    const result = streamText(buildStreamOptions(fallback.model, systemPrompt, convertedMessages, tools))
     return result.toUIMessageStreamResponse()
   }
 }

@@ -24,13 +24,31 @@ export function SimInputPanel({ inputs, onChange }: Props) {
       <SectionLabel>Assumptions</SectionLabel>
       <div className="grid grid-cols-1 gap-x-5 gap-y-3 sm:grid-cols-2">
         <SimSlider
-          label="Vendor cost per unit (₹)"
+          label="Product cost per unit (₹)"
           value={inputs.cogs}
           min={0}
           max={maxCogs}
           step={10}
           prefix="₹"
           onChange={(v) => onChange({ cogs: v })}
+        />
+        <SimSlider
+          label="COGS shipping component (₹)"
+          value={inputs.cogsShipping}
+          min={0}
+          max={500}
+          step={5}
+          prefix="₹"
+          onChange={(v) => onChange({ cogsShipping: v })}
+        />
+        <SimSlider
+          label="Packaging cost (₹)"
+          value={inputs.packaging}
+          min={0}
+          max={200}
+          step={1}
+          prefix="₹"
+          onChange={(v) => onChange({ packaging: v })}
         />
         <SimSlider
           label="CAC — cost per order (₹)"

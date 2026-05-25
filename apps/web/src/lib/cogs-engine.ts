@@ -1,6 +1,8 @@
 export interface SimInputs {
   asp: number
   cogs: number
+  cogsShipping: number
+  packaging: number
   cac: number
   ship: number
   rtoPercent: number
@@ -21,6 +23,7 @@ export interface ScenarioRow {
 }
 
 export interface SimResult {
+  productCost: number
   netRev: number
   pgwCost: number
   rtoCost: number
@@ -70,11 +73,14 @@ function buildScenarios(
   netRev: number,
   totalVarCost: number,
 ): ScenarioRow[] {
-  const { cogs, targetMarginPercent } = inputs
+  // cogs = product cost only; shipping + packaging are fixed components of effective COGS
+  const { cogs, cogsShipping, packaging, targetMarginPercent } = inputs
+  const fixedCogsComponents = cogsShipping + packaging
   const deltas = [-0.4, -0.3, -0.2, -0.1, 0, 0.1, 0.2]
   return deltas.map((d) => {
     const vc = Math.round(cogs * (1 + d))
-    const profit = netRev - vc - totalVarCost
+    const effectiveCogs = vc + fixedCogsComponents
+    const profit = netRev - effectiveCogs - totalVarCost
     const marginPct = netRev > 0 ? (profit / netRev) * 100 : 0
     const badge: Classification =
       profit > 0 && marginPct >= targetMarginPercent
@@ -87,7 +93,7 @@ function buildScenarios(
 }
 
 export function simulate(inputs: SimInputs): SimResult {
-  const { asp, cogs, cac, ship, rtoPercent, pgwPercent, gstInclusive, taxRate, targetMarginPercent, targetAbsoluteProfit } = inputs
+  const { asp, cogs, cogsShipping, packaging, cac, ship, rtoPercent, pgwPercent, gstInclusive, taxRate, targetMarginPercent, targetAbsoluteProfit } = inputs
 
   const netRev = gstInclusive ? asp / (1 + taxRate / 100) : asp
 
@@ -95,17 +101,21 @@ export function simulate(inputs: SimInputs): SimResult {
   const rtoCost = netRev * (rtoPercent / 100)
   const totalVarCost = cac + ship + pgwCost + rtoCost
 
-  const contribution = netRev - cogs
+  // cogs = actual product cost; effectiveCogs = cogs + fixed shipping + packaging
+  const fixedCogsComponents = cogsShipping + packaging
+  const effectiveCogs = cogs + fixedCogsComponents
+
+  const contribution = netRev - effectiveCogs
   const cmPercent = netRev > 0 ? (contribution / netRev) * 100 : 0
-  const netProfit = netRev - cogs - totalVarCost
+  const netProfit = netRev - effectiveCogs - totalVarCost
   const roas = cac > 0 ? asp / cac : 0
 
-  const beVendorCost = netRev - totalVarCost
-  const targetVendorCost = netRev * (1 - targetMarginPercent / 100) - totalVarCost
+  // break-even and target expressed in product cost terms (shipping + packaging stay fixed)
+  const beVendorCost = netRev - totalVarCost - fixedCogsComponents
+  const targetVendorCost = netRev * (1 - targetMarginPercent / 100) - totalVarCost - fixedCogsComponents
   const requiredReductionPct = cogs > 0 && targetVendorCost < cogs
     ? ((cogs - targetVendorCost) / cogs) * 100
     : 0
-  // how far current cogs is from target, as % of target (for progress bar)
   const currentCostGapPct = targetVendorCost > 0
     ? Math.min(100, Math.max(0, (cogs / targetVendorCost) * 100))
     : cogs <= 0 ? 100 : 0
@@ -118,7 +128,7 @@ export function simulate(inputs: SimInputs): SimResult {
   const expectedRevenue = ordersRequired !== null ? ordersRequired * asp : null
 
   return {
-    netRev, pgwCost, rtoCost, totalVarCost,
+    productCost: cogs, netRev, pgwCost, rtoCost, totalVarCost,
     contribution, cmPercent, netProfit, roas,
     beVendorCost, targetVendorCost, requiredReductionPct, currentCostGapPct,
     classification, recommendation,
@@ -129,7 +139,9 @@ export function simulate(inputs: SimInputs): SimResult {
 
 export const DEFAULT_INPUTS: SimInputs = {
   asp: 999,
-  cogs: 350,
+  cogs: 223,  // product cost only (effective COGS 350 − shipping 117 − packaging 10)
+  cogsShipping: 117,
+  packaging: 10,
   cac: 500,
   ship: 80,
   rtoPercent: 12,

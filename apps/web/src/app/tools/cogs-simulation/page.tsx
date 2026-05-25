@@ -110,7 +110,8 @@ export default function CogsSimulationPage() {
               : null
         setInputs((prev) => ({
           ...prev,
-          cogs: variant.cogs > 0 ? Math.round(variant.cogs) : prev.cogs,
+          // strip fixed shipping + packaging from effective COGS → product cost only
+          cogs: variant.cogs > 0 ? Math.max(0, Math.round(variant.cogs) - prev.cogsShipping - prev.packaging) : prev.cogs,
           cac: variant.cac > 0 ? Math.round(variant.cac) : prev.cac,
           asp: variantAsp ?? prev.asp,
         }))
@@ -128,7 +129,8 @@ export default function CogsSimulationPage() {
 
     setInputs((prev) => ({
       ...prev,
-      cogs: product.avgCogs > 0 ? Math.round(product.avgCogs) : prev.cogs,
+      // strip fixed shipping + packaging from effective COGS → product cost only
+      cogs: product.avgCogs > 0 ? Math.max(0, Math.round(product.avgCogs) - prev.cogsShipping - prev.packaging) : prev.cogs,
       cac: product.cac > 0 ? Math.round(product.cac) : prev.cac,
       asp: derivedAsp ?? prev.asp,
     }))
@@ -282,7 +284,7 @@ export default function CogsSimulationPage() {
         </div>
         <div className="flex flex-col gap-3 lg:col-span-7">
           <UnitEconomicsGrid result={result} targetProfit={inputs.targetAbsoluteProfit} />
-          <ScenarioTable rows={result.scenarios} currentCogs={inputs.cogs} />
+          <ScenarioTable rows={result.scenarios} currentCogs={result.productCost} />
         </div>
       </div>
     </main>
