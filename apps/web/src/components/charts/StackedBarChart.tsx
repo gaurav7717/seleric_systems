@@ -17,6 +17,8 @@ import {
   fmtCurrency,
   prettyLabel,
   shortDate,
+  timeAxisMinTickGap,
+  timeAxisTickInterval,
 } from "./format"
 import { useChartTheme } from "@/hooks/useChartTheme"
 
@@ -67,7 +69,14 @@ export function StackedBarChart({ rows, series, categoryKey }: Props) {
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
-        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: ct.tick, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          interval={timeAxisTickInterval(data.length)}
+          minTickGap={timeAxisMinTickGap(data.length)}
+        />
         <YAxis
           tickFormatter={fmtCurrency}
           tick={{ fill: ct.tick, fontSize: 11 }}

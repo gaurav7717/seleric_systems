@@ -58,7 +58,7 @@ export const queryTools = {
     }),
     execute: ({ query, label }: { query: Record<string, unknown>; label?: string }) =>
       runTool(async () => {
-        const q = { limit: 500, ...query, timezone: IST_TIMEZONE }
+        const q = { ...query, timezone: IST_TIMEZONE }
         const raw = await callCubeTool("cube_query", { query: q })
         const rows = extractRows(raw)
         return okRows(rows, {
@@ -130,8 +130,8 @@ export const queryTools = {
     }) =>
       runTool(async () => {
         const [rawA, rawB] = await Promise.all([
-          callCubeTool("cube_query", { query: { limit: 500, ...queryA, timezone: IST_TIMEZONE } }),
-          callCubeTool("cube_query", { query: { limit: 500, ...queryB, timezone: IST_TIMEZONE } }),
+          callCubeTool("cube_query", { query: { ...queryA, timezone: IST_TIMEZONE } }),
+          callCubeTool("cube_query", { query: { ...queryB, timezone: IST_TIMEZONE } }),
         ])
         const rowsA = extractRows(rawA)
         const rowsB = extractRows(rawB)
@@ -156,8 +156,18 @@ export const queryTools = {
           ...((queryB.measures as string[]) ?? []),
         ]
         const fakeQuery = { ...queryA, measures: allMeasures }
-        return okRows(merged, {
-          type: detectChartType(fakeQuery as Record<string, unknown>, merged),
+
+        // Sort merged result by primary measure descending so the most significant
+        // rows appear first regardless of display row cap.
+        const sortKey = allMeasures.find((m) =>
+          /revenue|attributed|spend|profit/i.test(m)
+        ) ?? allMeasures[0]
+        const sortedMerged = sortKey
+          ? [...merged].sort((a, b) => (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0))
+          : merged
+
+        return okRows(sortedMerged, {
+          type: detectChartType(fakeQuery as Record<string, unknown>, sortedMerged),
           label: label ?? "Merged Result",
         })
       }),

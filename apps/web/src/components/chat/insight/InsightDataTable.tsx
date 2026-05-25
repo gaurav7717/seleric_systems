@@ -8,7 +8,6 @@ import {
   valueColor,
 } from "@/lib/chat/visualization"
 import type { NormalizedRow } from "@/lib/chat/visualization"
-import { analyzeColumns } from "@/lib/chat/visualization/column-semantics"
 import { aggregatePeriod } from "@/lib/chat/visualization/aggregate"
 import { pickTableColumns } from "@/lib/chat/visualization/generate-compiled-insights"
 import type { CubeRow } from "@/lib/chat/visualization/column-semantics"
@@ -29,6 +28,8 @@ function formatCell(key: string, val: unknown): string {
   return String(val)
 }
 
+const MAX_VISIBLE_ROWS = 30
+
 export function InsightDataTable({
   rows,
   title,
@@ -48,7 +49,10 @@ export function InsightDataTable({
           (k) => !k.endsWith("__label") && !/surrogate|\.id$|__missing$/i.test(k)
         )
   )
-  const profile = analyzeColumns(rows as CubeRow[])
+
+  const totalRows = rows.length
+  const visibleRows = (rows as NormalizedRow[]).slice(0, MAX_VISIBLE_ROWS)
+  const truncated = totalRows > MAX_VISIBLE_ROWS
   const summary = showSummary ? aggregatePeriod(rows as CubeRow[]) : null
 
   return (
@@ -73,13 +77,17 @@ export function InsightDataTable({
             </tr>
           </thead>
           <tbody>
-            {(rows as NormalizedRow[]).map((row, i) => (
+            {visibleRows.map((row, i) => (
               <tr key={i} className="border-b border-stone-100 dark:border-night-800/50">
                 {headers.map((h) => {
                   const val = row[h]
+                  const rawVal = val as unknown
                   const n = Number(val)
-                  const colorClass =
-                    !isNaN(n) && typeof val === "number"
+                  const isBool = rawVal === true || rawVal === false || val === "true" || val === "false"
+                  const boolVal = rawVal === true || val === "true"
+                  const colorClass = isBool
+                    ? boolVal ? "text-insight-negative font-medium" : "text-insight-positive font-medium"
+                    : !isNaN(n) && typeof val === "number"
                       ? valueColor(h, n)
                       : "text-stone-800 dark:text-night-200"
                   return (
@@ -87,7 +95,7 @@ export function InsightDataTable({
                       key={h}
                       className={`py-2 px-2 text-left whitespace-nowrap ${colorClass}`}
                     >
-                      {formatCell(h, val)}
+                      {isBool ? (boolVal ? "⚑ Flag" : "✓") : formatCell(h, val)}
                     </td>
                   )
                 })}
@@ -105,6 +113,11 @@ export function InsightDataTable({
           </tbody>
         </table>
       </div>
+      {truncated && (
+        <p className="mt-1.5 text-[11px] text-stone-400 dark:text-night-500 font-sans">
+          Showing top {MAX_VISIBLE_ROWS} of {totalRows} rows — ask for a specific filter or ranking to see more.
+        </p>
+      )}
     </div>
   )
 }

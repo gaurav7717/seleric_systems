@@ -20,6 +20,7 @@ const TOOL_LABELS: Record<string, string> = {
   runQuery: "Cube query",
   runComputedQuery: "Computed analysis",
   mergeQueryResults: "Cross-cube join",
+  runPythonAnalysis: "Python analysis",
   clarify: "Clarifying question",
   exploreSchema: "Schema",
 }
@@ -43,6 +44,8 @@ function toolDetail(toolName: string, input: Record<string, unknown>): string {
       return (input.label as string) ?? ((input.compute as Record<string, unknown>)?.type as string) ?? "computed"
     case "mergeQueryResults":
       return (input.label as string) ?? `join on ${String(input.joinKey ?? "key")}`
+    case "runPythonAnalysis":
+      return (input.label as string) ?? "custom analysis"
     case "clarify":
       return ""
     case "exploreSchema":

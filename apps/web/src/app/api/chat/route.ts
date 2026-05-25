@@ -77,7 +77,7 @@ async function resolveAvailableModel(primary: ResolvedChatModel, fallback: Resol
     await generateText({
       model: primary.model,
       prompt: "Reply with OK.",
-      maxOutputTokens: 4,
+      maxOutputTokens: 16,
       maxRetries: 0,
       temperature: 0,
     })

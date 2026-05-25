@@ -15,6 +15,7 @@ multiagent-system/
 ├── docs/
 │   ├── ARCHITECTURE.md             # System diagram, service map, external connections
 │   ├── DATA_FLOW.md                # End-to-end flows for signal → insight → action
+│   ├── CHAT.md                     # Chat architecture, tools, streaming, visual output
 │   ├── TECH_STACK.md               # Technology choices with rationale
 │   ├── REQUIREMENTS.md             # Functional + non-functional requirements, phase gates
 │   └── FOLDER_STRUCTURE.md         # This file

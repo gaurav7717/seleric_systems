@@ -2,7 +2,7 @@ import "server-only"
 
 import { runCubeQuery } from "../cube-query"
 import { fetchKpiTodayYesterday } from "../kpi"
-import { istDateRange, LAST_30_DAYS } from "../date-ranges"
+import { toCubeDateRange, type DashboardDateRange } from "../date-ranges"
 
 export interface MainDashboardData {
   kpiTodayYesterday: Record<string, unknown>[]
@@ -17,12 +17,11 @@ export interface MainDashboardData {
   pnlWaterfall: Record<string, unknown>[]
 }
 
-function td(dim: string, days: number, granularity?: "day") {
-  const dateRange = days === 30 ? LAST_30_DAYS : istDateRange(days)
-  return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange }
+function td(dim: string, range: DashboardDateRange, granularity?: "day") {
+  return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange: toCubeDateRange(range) }
 }
 
-export async function fetchMainDashboardData(days = 30): Promise<MainDashboardData> {
+export async function fetchMainDashboardData(range: DashboardDateRange): Promise<MainDashboardData> {
   const [
     kpiTodayYesterday,
     netProfitTrend,
@@ -38,7 +37,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
     fetchKpiTodayYesterday(),
     runCubeQuery({
       measures: ["daily_pnl.net_profit", "daily_pnl.gross_profit"],
-      timeDimensions: [td("daily_pnl.report_date", days, "day")],
+      timeDimensions: [td("daily_pnl.report_date", range, "day")],
       order: { "daily_pnl.report_date": "asc" },
     }),
     runCubeQuery({
@@ -48,7 +47,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "daily_pnl.total_ad_spend",
         "daily_pnl.net_profit",
       ],
-      timeDimensions: [td("daily_pnl.report_date", days, "day")],
+      timeDimensions: [td("daily_pnl.report_date", range, "day")],
       order: { "daily_pnl.report_date": "asc" },
     }),
     runCubeQuery({
@@ -60,7 +59,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "channel_pnl.google_attributed_orders",
         "channel_pnl.organic_attributed_orders",
       ],
-      timeDimensions: [td("channel_pnl.date_start", days)],
+      timeDimensions: [td("channel_pnl.date_start", range)],
     }),
     runCubeQuery({
       measures: [
@@ -68,7 +67,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "channel_pnl.google_net_profit",
         "channel_pnl.organic_net_profit",
       ],
-      timeDimensions: [td("channel_pnl.date_start", days, "day")],
+      timeDimensions: [td("channel_pnl.date_start", range, "day")],
       order: { "channel_pnl.date_start": "asc" },
     }),
     runCubeQuery({
@@ -77,7 +76,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "shopify_orders.aov",
         "shopify_orders.gross_revenue",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_orders.created_at_ist", range, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
     }),
     runCubeQuery({
@@ -87,7 +86,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "channel_pnl.meta_ad_spend",
         "channel_pnl.google_ad_spend",
       ],
-      timeDimensions: [td("channel_pnl.date_start", days, "day")],
+      timeDimensions: [td("channel_pnl.date_start", range, "day")],
       order: { "channel_pnl.date_start": "asc" },
     }),
     runCubeQuery({
@@ -96,7 +95,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "daily_pnl.gross_profit",
         "daily_pnl.total_sales_ex_gst",
       ],
-      timeDimensions: [td("daily_pnl.report_date", days, "day")],
+      timeDimensions: [td("daily_pnl.report_date", range, "day")],
       order: { "daily_pnl.report_date": "asc" },
     }),
     runCubeQuery({
@@ -105,7 +104,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "shopify_orders.returned_orders",
         "shopify_orders.net_orders",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_orders.created_at_ist", range, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
     }),
     runCubeQuery({
@@ -116,7 +115,7 @@ export async function fetchMainDashboardData(days = 30): Promise<MainDashboardDa
         "daily_pnl.total_ad_spend",
         "daily_pnl.net_profit",
       ],
-      timeDimensions: [td("daily_pnl.report_date", days)],
+      timeDimensions: [td("daily_pnl.report_date", range)],
     }),
   ])
 

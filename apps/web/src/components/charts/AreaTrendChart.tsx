@@ -16,6 +16,8 @@ import {
   isPctMetric,
   prettyLabel,
   shortDate,
+  timeAxisMinTickGap,
+  timeAxisTickInterval,
 } from "./format"
 import { useChartTheme } from "@/hooks/useChartTheme"
 
@@ -54,7 +56,14 @@ export function AreaTrendChart({ rows }: Props) {
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
-        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: ct.tick, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          interval={timeAxisTickInterval(data.length)}
+          minTickGap={timeAxisMinTickGap(data.length)}
+        />
         <YAxis
           tickFormatter={pct ? fmtPct : (v) => String(v)}
           tick={{ fill: ct.tick, fontSize: 11 }}

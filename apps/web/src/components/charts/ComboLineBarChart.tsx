@@ -22,6 +22,8 @@ import {
   measureFormat,
   prettyLabel,
   shortDate,
+  timeAxisMinTickGap,
+  timeAxisTickInterval,
 } from "./format"
 import { useChartTheme } from "@/hooks/useChartTheme"
 
@@ -69,7 +71,14 @@ export function ComboLineBarChart({ rows, barMeasures, lineMeasures }: Props) {
     <ResponsiveContainer width="100%" height={220}>
       <ComposedChart data={data} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
-        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: ct.tick, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          interval={timeAxisTickInterval(data.length)}
+          minTickGap={timeAxisMinTickGap(data.length)}
+        />
         <YAxis
           yAxisId="left"
           tickFormatter={(v) =>
