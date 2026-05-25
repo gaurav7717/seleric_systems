@@ -191,7 +191,9 @@ export function generateCompiledInsights(merged: MergedToolData): InsightSection
 
 export function pickTableColumns(rows: CubeRow[]): string[] {
   if (!rows.length) return []
-  const all = Object.keys(rows[0]).filter((k) => !k.endsWith("__label") && !/surrogate|\.id$/i.test(k))
+  const all = Object.keys(rows[0]).filter(
+    (k) => !k.endsWith("__label") && !/surrogate|\.id$/i.test(k) && k !== "derived.__missing"
+  )
   const priority = (k: string) => {
     if (/report_date|\.month|created_at/i.test(k)) return 0
     if (/sales_ex|total_sales/i.test(k)) return 1

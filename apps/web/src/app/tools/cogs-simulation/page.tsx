@@ -5,6 +5,7 @@ import { SimInputPanel } from "@/components/cogs/SimInputPanel"
 import { UnitEconomicsGrid } from "@/components/cogs/UnitEconomicsGrid"
 import { ScenarioTable } from "@/components/cogs/ScenarioTable"
 import { ProductSummaryCard } from "@/components/cogs/ProductSummaryCard"
+import { SearchableSelect } from "@/components/cogs/SearchableSelect"
 import { simulate, DEFAULT_INPUTS, type SimInputs, type Classification } from "@/lib/cogs-engine"
 import {
   groupSkusByProduct,
@@ -14,6 +15,9 @@ import {
   type ProductGroup,
   type VariantData,
 } from "@/lib/campaign-sku-matcher"
+import { DateRangeSummaryPanel } from "@/components/cogs/DateRangeSummaryPanel"
+
+type ActiveTab = "portfolio" | "calculator"
 
 const BADGE_STYLE: Record<Classification, string> = {
   WINNER:
@@ -54,6 +58,7 @@ interface ApiResponse {
 }
 
 export default function CogsSimulationPage() {
+  const [activeTab, setActiveTab] = useState<ActiveTab>("portfolio")
   const [dateFrom, setDateFrom] = useState(daysAgoStr(30))
   const [dateTo, setDateTo] = useState(todayStr())
   const [loading, setLoading] = useState(false)
@@ -110,7 +115,6 @@ export default function CogsSimulationPage() {
               : null
         setInputs((prev) => ({
           ...prev,
-          // strip fixed shipping + packaging from effective COGS → product cost only
           cogs: variant.cogs > 0 ? Math.max(0, Math.round(variant.cogs) - prev.cogsShipping - prev.packaging) : prev.cogs,
           cac: variant.cac > 0 ? Math.round(variant.cac) : prev.cac,
           asp: variantAsp ?? prev.asp,
@@ -129,7 +133,6 @@ export default function CogsSimulationPage() {
 
     setInputs((prev) => ({
       ...prev,
-      // strip fixed shipping + packaging from effective COGS → product cost only
       cogs: product.avgCogs > 0 ? Math.max(0, Math.round(product.avgCogs) - prev.cogsShipping - prev.packaging) : prev.cogs,
       cac: product.cac > 0 ? Math.round(product.cac) : prev.cac,
       asp: derivedAsp ?? prev.asp,
@@ -157,11 +160,18 @@ export default function CogsSimulationPage() {
     if (value && dateFrom && value < dateFrom) setDateFrom(value)
   }, [dateFrom])
 
+  const handlePortfolioSelect = useCallback((base: string) => {
+    setSelectedBase(base)
+    setSelectedVariantSku("")
+    setActiveTab("calculator")
+  }, [])
+
   const aspLabel = `ASP ₹${inputs.asp.toLocaleString("en-IN")}`
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-4 sm:px-5 sm:py-6">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+      {/* Header */}
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">COGS Simulation</h1>
           <p className="text-sm text-stone-500 dark:text-night-500 mt-0.5">
@@ -200,93 +210,160 @@ export default function CogsSimulationPage() {
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 px-3 py-2 shadow-sm dark:shadow-none">
-        {products.length > 0 ? (
-          <select
-            value={selectedBase}
-            onChange={(e) => setSelectedBase(e.target.value)}
-            className="min-w-0 flex-1 rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-2 py-1.5 text-sm text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none sm:max-w-md"
-          >
-            <option value="">— Select product —</option>
-            {products.map((p) => (
-              <option key={p.productBase} value={p.productBase}>
-                {p.productBase} — {p.productTitle.slice(0, 48)}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-xs text-stone-500 dark:text-night-500">No products loaded — use manual inputs below</span>
-        )}
-        {selectedProduct && selectedProduct.variantData.length > 1 && (
-          <select
-            value={selectedVariantSku}
-            onChange={(e) => setSelectedVariantSku(e.target.value)}
-            className="rounded border border-stone-300 dark:border-night-700 bg-white dark:bg-night-875 px-2 py-1.5 text-xs text-stone-900 dark:text-night-50 focus:border-insight-positive focus:outline-none"
-          >
-            <option value="">All variants</option>
-            {selectedProduct.variantData.map((v) => (
-              <option key={v.sku} value={v.sku}>
-                {v.sku} ({v.qty} u)
-              </option>
-            ))}
-          </select>
-        )}
-        {selectedBase && (
-          <>
-            <span
-              className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${BADGE_STYLE[result.classification]}`}
-            >
-              {result.classification}
+      {/* Tab bar */}
+      <div className="mb-4 flex gap-1 border-b border-stone-200 dark:border-night-800">
+        <button
+          type="button"
+          onClick={() => setActiveTab("portfolio")}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === "portfolio"
+              ? "border-insight-positive text-insight-positive"
+              : "border-transparent text-stone-500 dark:text-night-500 hover:text-stone-700 dark:hover:text-night-300"
+          }`}
+        >
+          Portfolio
+          {products.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-stone-100 dark:bg-night-800 px-1.5 py-0.5 text-[10px] font-semibold text-stone-500 dark:text-night-500">
+              {products.length}
             </span>
-            <span className="shrink-0 text-xs tabular-nums text-stone-500 dark:text-night-500">{aspLabel}</span>
-          </>
-        )}
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("calculator")}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === "calculator"
+              ? "border-insight-positive text-insight-positive"
+              : "border-transparent text-stone-500 dark:text-night-500 hover:text-stone-700 dark:hover:text-night-300"
+          }`}
+        >
+          COGS Calculator
+          {selectedBase && (
+            <span className="ml-1.5 rounded-full bg-stone-100 dark:bg-night-800 px-1.5 py-0.5 text-[10px] font-semibold text-stone-500 dark:text-night-500 max-w-[120px] truncate inline-block align-middle">
+              {selectedBase}
+            </span>
+          )}
+        </button>
       </div>
 
-      {error && (
-        <div className="mb-3 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-insight-negative">
-          Failed to load data: {error}. Manual simulation still works.
-        </div>
-      )}
-
+      {/* Loading / error states */}
       {loading && (
         <div className="mb-3 flex items-center gap-2 text-xs text-stone-500 dark:text-night-500">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-stone-300 dark:border-night-700 border-t-insight-positive" />
           Loading product &amp; campaign data…
         </div>
       )}
+      {error && (
+        <div className="mb-3 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-xs text-insight-negative">
+          Failed to load data: {error}. Manual simulation still works.
+        </div>
+      )}
 
-      {selectedProduct && (
-        <div className="mb-3 space-y-2">
-          {!selectedVariantSku && selectedProduct.variants.length > 1 && (
-            <p className="truncate text-[10px] text-stone-400 dark:text-night-600">
-              Variants: {selectedProduct.variants.join(", ")}
+      {/* ── Portfolio tab ── */}
+      {activeTab === "portfolio" && (
+        <>
+          {!loading && products.length === 0 && !error && (
+            <p className="text-xs text-stone-500 dark:text-night-500">
+              No products found for the selected date range.
             </p>
           )}
-          <ProductSummaryCard product={selectedProduct} variant={selectedVariant} />
-          <p
-            className={`rounded-lg border px-3 py-2 text-xs leading-snug ${RECOMMEND_STYLE[result.classification]}`}
-          >
-            {result.recommendation}
-          </p>
-        </div>
+          {products.length > 0 && (
+            <DateRangeSummaryPanel
+              products={products}
+              sharedInputs={inputs}
+              selectedBase={selectedBase}
+              onSelect={handlePortfolioSelect}
+            />
+          )}
+        </>
       )}
 
-      {!selectedBase && !loading && products.length === 0 && (
-        <p className="mb-3 text-xs text-stone-500 dark:text-night-500">
-          Adjust assumptions below to run a manual simulation.
-        </p>
-      )}
+      {/* ── COGS Calculator tab ── */}
+      {activeTab === "calculator" && (
+        <>
+          {/* Product + variant selector */}
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-insight-border dark:border-night-800 bg-white dark:bg-night-900 px-3 py-2 shadow-sm dark:shadow-none">
+            {products.length > 0 ? (
+              <SearchableSelect
+                value={selectedBase}
+                onChange={setSelectedBase}
+                options={products.map((p) => ({
+                  value: p.productBase,
+                  label: `${p.productBase} — ${p.productTitle.slice(0, 48)}`,
+                }))}
+                placeholder="— Select product —"
+                className="min-w-0 flex-1 sm:max-w-md"
+              />
+            ) : (
+              <span className="text-xs text-stone-500 dark:text-night-500">No products loaded — use manual inputs below</span>
+            )}
+            {selectedProduct && selectedProduct.variantData.length > 1 && (
+              <SearchableSelect
+                value={selectedVariantSku}
+                onChange={setSelectedVariantSku}
+                options={[
+                  { value: "", label: "All variants" },
+                  ...selectedProduct.variantData.map((v) => ({
+                    value: v.sku,
+                    label: `${v.sku} (${v.qty} u)`,
+                  })),
+                ]}
+                placeholder="All variants"
+                inputClassName="text-xs"
+              />
+            )}
+            {selectedBase && (
+              <>
+                <span
+                  className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${BADGE_STYLE[result.classification]}`}
+                >
+                  {result.classification}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-stone-500 dark:text-night-500">{aspLabel}</span>
+              </>
+            )}
+          </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-start">
-        <div className="lg:col-span-5">
-          <SimInputPanel inputs={inputs} onChange={handleInputChange} />
-        </div>
-        <div className="flex flex-col gap-3 lg:col-span-7">
-          <UnitEconomicsGrid result={result} targetProfit={inputs.targetAbsoluteProfit} />
-          <ScenarioTable rows={result.scenarios} currentCogs={result.productCost} />
-        </div>
-      </div>
+          {/* Product summary + recommendation */}
+          {selectedProduct && (
+            <div className="mb-3 space-y-2">
+              {!selectedVariantSku && selectedProduct.variants.length > 1 && (
+                <p className="truncate text-[10px] text-stone-400 dark:text-night-600">
+                  Variants: {selectedProduct.variants.join(", ")}
+                </p>
+              )}
+              <ProductSummaryCard
+                product={selectedProduct}
+                variant={selectedVariant}
+                cogsShipping={inputs.cogsShipping}
+                packaging={inputs.packaging}
+              />
+              <p
+                className={`rounded-lg border px-3 py-2 text-xs leading-snug ${RECOMMEND_STYLE[result.classification]}`}
+              >
+                {result.recommendation}
+              </p>
+            </div>
+          )}
+
+          {!selectedBase && !loading && products.length === 0 && (
+            <p className="mb-3 text-xs text-stone-500 dark:text-night-500">
+              Adjust assumptions below to run a manual simulation.
+            </p>
+          )}
+
+          {/* Sim panels */}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-5">
+              <SimInputPanel inputs={inputs} onChange={handleInputChange} />
+            </div>
+            <div className="flex flex-col gap-3 lg:col-span-7">
+              <UnitEconomicsGrid result={result} targetProfit={inputs.targetAbsoluteProfit} />
+              <ScenarioTable rows={result.scenarios} currentCogs={result.productCost} />
+            </div>
+          </div>
+        </>
+      )}
     </main>
   )
 }

@@ -21,6 +21,8 @@ export async function runComputedAnalysis(
       return topN(rows, compute.rankBy, compute.n ?? 20)
     case "raw":
       return rows
+    case "formula":
+      return applyFormula(rows, compute.outputColumn, compute.numerator, compute.denominator, compute.scale ?? 1)
   }
 }
 
@@ -77,6 +79,22 @@ function groupBySum(rows: CubeRow[], groupKeys: string[]): CubeRow[] {
     }
   }
   return [...groups.values()]
+}
+
+function applyFormula(
+  rows: CubeRow[],
+  outputCol: string,
+  numCol: string,
+  denCol: string,
+  scale: number
+): CubeRow[] {
+  return rows.map((row) => {
+    const numKey = resolveRowKey(row, numCol) ?? numCol
+    const denKey = resolveRowKey(row, denCol) ?? denCol
+    const num = Number(row[numKey] ?? 0)
+    const den = Number(row[denKey] ?? 0)
+    return { ...row, [outputCol]: den !== 0 ? (num / den) * scale : null }
+  })
 }
 
 function topN(rows: CubeRow[], rankBy: string, n: number): CubeRow[] {

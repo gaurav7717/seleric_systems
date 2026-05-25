@@ -45,7 +45,8 @@
       "Bash(python3 *)",
       "PowerShell($content = Get-Content \"C:\\\\D Volume\\\\SpacePeppers\\\\multiagent-cursor-files\\\\multiagent-system\\\\apps\\\\web\\\\src\\\\lib\\\\chat\\\\instructions\\\\cube-domain.ts\" -Raw; $content.Substring\\($content.Length - 300\\) | ForEach-Object { [System.Text.RegularExpressions.Regex]::Escape\\($_\\) } | Write-Output; Write-Output \"---LAST50CHARS---\"; [System.Text.Encoding]::UTF8.GetBytes\\($content.Substring\\($content.Length - 50\\)\\) | ForEach-Object { $_.ToString\\(\"X2\"\\) } | Write-Output)",
       "Bash(xargs grep -l \"Revenue & orders daily\\\\|Top products by revenue\\\\|Return & cancel\\\\|shopify\")",
-      "Bash(xargs grep -li \"shopify\")"
+      "Bash(xargs grep -li \"shopify\")",
+      "PowerShell(Get-ChildItem \"node_modules\\\\@ai-sdk\\\\react\" -Recurse | Select-Object FullName | Where-Object { $_.FullName -match \"d\\\\.ts\" } | Select-Object -First 3)"
     ]
   }
 }

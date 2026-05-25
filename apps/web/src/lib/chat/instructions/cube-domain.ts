@@ -88,5 +88,55 @@ Use \`marketing_performance\` with the entity as a dimension:
 \`\`\`
 
 - Swap \`campaign_name\` for \`adset_name\` for adset-level view.
-- Do NOT use \`daily_pnl\` for delivery/ROAS metrics -- those are aggregate P&L only.`
+- Do NOT use \`daily_pnl\` for delivery/ROAS metrics -- those are aggregate P&L only.
+
+## Cube relationships -- shared dimensions for cross-cube analysis
+
+When a question spans two cubes, fetch each separately then synthesize in your response. The table below shows which dimension links them.
+
+| Cube A | Cube B | Shared join dimension | How to align |
+|---|---|---|---|
+| \`daily_pnl\` | \`channel_pnl\` | \`report_date\` | Same date range → compare totals vs channel split |
+| \`daily_pnl\` | \`shopify_orders\` | date (IST) | \`daily_pnl.report_date\` ≈ \`shopify_orders.created_at_ist\` date bucket |
+| \`marketing_performance\` | \`dw_meta_ads_attribution\` | \`campaign_name\` + date | Match by campaign_name for spend vs attributed revenue comparison |
+| \`marketing_performance\` | \`ad_performance\` | \`campaign_name\` + date | marketing_performance = daily roll-up; ad_performance = hourly detail |
+| \`shopify_orders\` | \`shopify_order_line_items\` | \`order_id\` | orders is order-level; line_items is SKU-level within same order |
+| \`shopify_order_line_items\` | \`product_performance\` | \`product_title\` / \`sku\` | product_performance is a pre-aggregated view -- prefer it over raw line_items for SKU metrics |
+| \`dw_meta_ads_attribution\` | \`shopify_orders\` | date + UTM | Attribution aligns by date; UTM campaign names link ad spend → order |
+
+## Cross-cube query patterns
+
+**Pattern 1 -- Period comparison across two cubes (same date range)**
+Run both queries in the same step (parallel tool calls), then compare totals in your analysis.
+Example: "How does our Meta ROAS compare to overall net margin this month?"
+→ Step 1: \`getDailyPnl\` (net profit, ad spend) + \`runQuery\` on \`marketing_performance\` (ROAS) in parallel
+→ Step 2: Compare in text: ROAS of X while net margin was Y%
+
+**Pattern 2 -- Campaign-level: spend vs attributed revenue**
+Example: "Which campaigns generated the most revenue vs what they cost?"
+→ Step 1: \`runQuery\` on \`marketing_performance\` (ad_spend by campaign_name)
+→ Step 2: \`runQuery\` on \`dw_meta_ads_attribution\` (attributed_revenue, attributed_orders by campaign_name)
+→ Step 3: Match rows by campaign_name in your analysis; compute ROAS = attributed_revenue / ad_spend per campaign
+
+**Pattern 3 -- Product + orders (SKU drill-down)**
+Example: "Which products are selling the most and what is their return rate?"
+→ Use \`product_performance\` in a single query -- it has both units sold and return data pre-joined.
+→ Only fall back to \`shopify_order_line_items\` if product_performance lacks the specific measure.
+
+**Pattern 4 -- Hourly pattern for a specific campaign**
+Example: "When does campaign X get the best CTR during the day?"
+→ \`runQuery\` on \`ad_performance\` with dimension \`hourly_window\` + filter on campaign_name
+
+## When to synthesize in text vs when data is not joinable
+
+- **Two cubes, same date range, aggregate totals** → fetch both in parallel, synthesize in text. No extra step needed.
+- **Two cubes, row-level join needed** (e.g., ROAS per campaign matched across two cubes) → fetch both, align by the shared key column in your text analysis, flag any rows that do not match.
+- **Data genuinely not joinable** (e.g., Shopify product title vs Meta creative name) → fetch each separately, answer what you can, state the limitation clearly.
+
+## Adaptive recovery -- when queries fail or return no data
+
+- **0 rows returned**: Try widening the date range (double it). If still 0, call \`exploreSchema\` on that cube to verify the time dimension name, then retry once.
+- **"aggregate function calls cannot be nested" error**: Switch to \`runComputedQuery\` with \`type: "raw"\` or \`type: "top_n"\` -- Cube cannot handle the nested join; in-memory computation can.
+- **Field name error / unknown member**: Call \`exploreSchema\` on the cube, get the exact field name, retry once. Never guess a second time.
+- **Never answer "no data available" after a single failed attempt** -- always try at least one recovery path before concluding data is missing.`
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { simulate, type SimInputs, type Classification } from "@/lib/cogs-engine"
 import { type ProductGroup } from "@/lib/campaign-sku-matcher"
 
@@ -11,6 +11,15 @@ const BADGE_CLS: Record<Classification, string> = {
     "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-800/60",
   LOSER:
     "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-800/60",
+}
+
+const BADGE_ACTIVE_CLS: Record<Classification, string> = {
+  WINNER:
+    "bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 ring-2 ring-emerald-500 dark:ring-emerald-500",
+  BORDERLINE:
+    "bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 ring-2 ring-amber-500 dark:ring-amber-500",
+  LOSER:
+    "bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-200 ring-2 ring-red-500 dark:ring-red-500",
 }
 
 const CARD_LEFT: Record<Classification, string> = {
@@ -65,6 +74,8 @@ export function DateRangeSummaryPanel({
   selectedBase,
   onSelect,
 }: DateRangeSummaryPanelProps) {
+  const [activeFilter, setActiveFilter] = useState<Classification | null>(null)
+
   const entries = useMemo<ProductEntry[]>(() => {
     return products
       .map((p) => {
@@ -75,7 +86,12 @@ export function DateRangeSummaryPanel({
               ? Math.round(p.asp)
               : sharedInputs.asp
 
-        const cogs = p.avgCogs > 0 ? Math.round(p.avgCogs) : sharedInputs.cogs
+        // strip fixed ship+pkg from DB effective COGS to get product cost only
+        // (engine adds them back internally as effectiveCogs = cogs + cogsShipping + packaging)
+        const cogs =
+          p.avgCogs > 0
+            ? Math.max(0, Math.round(p.avgCogs) - sharedInputs.cogsShipping - sharedInputs.packaging)
+            : sharedInputs.cogs
         const cac = p.cac > 0 ? Math.round(p.cac) : sharedInputs.cac
 
         const result = simulate({ ...sharedInputs, asp, cogs, cac })
@@ -112,21 +128,29 @@ export function DateRangeSummaryPanel({
         {(["WINNER", "BORDERLINE", "LOSER"] as Classification[]).map((cls) => {
           const { count, rev } = summary[cls]
           if (count === 0) return null
+          const isActive = activeFilter === cls
           return (
-            <span key={cls} className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${BADGE_CLS[cls]}`}>
+            <button
+              key={cls}
+              type="button"
+              onClick={() => setActiveFilter(isActive ? null : cls)}
+              className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer ${isActive ? BADGE_ACTIVE_CLS[cls] : BADGE_CLS[cls]} hover:opacity-80`}
+            >
               {count}&nbsp;{cls === "BORDERLINE" ? "Borderline" : cls === "WINNER" ? `Winner${count !== 1 ? "s" : ""}` : `Loser${count !== 1 ? "s" : ""}`}
               <span className="ml-1 font-normal opacity-70">· {fmtK(rev)}</span>
-            </span>
+            </button>
           )
         })}
         <span className="ml-auto text-[10px] text-stone-400 dark:text-night-600">
-          {products.length} SKU{products.length !== 1 ? "s" : ""} · click to drill in
+          {activeFilter
+            ? `${summary[activeFilter].count} shown · click pill to clear`
+            : `${products.length} SKU${products.length !== 1 ? "s" : ""} · click to open calculator`}
         </span>
       </div>
 
       {/* Product cards */}
       <div className="flex flex-wrap gap-1.5">
-        {entries.map((e) => {
+        {(activeFilter ? entries.filter((e) => e.classification === activeFilter) : entries).map((e) => {
           const isSelected = e.productBase === selectedBase
           return (
             <button

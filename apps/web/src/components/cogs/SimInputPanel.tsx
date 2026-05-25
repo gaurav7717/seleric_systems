@@ -33,7 +33,7 @@ export function SimInputPanel({ inputs, onChange }: Props) {
           onChange={(v) => onChange({ cogs: v })}
         />
         <SimSlider
-          label="COGS shipping component (₹)"
+          label="Shipping cost (₹)"
           value={inputs.cogsShipping}
           min={0}
           max={500}
@@ -58,15 +58,6 @@ export function SimInputPanel({ inputs, onChange }: Props) {
           step={10}
           prefix="₹"
           onChange={(v) => onChange({ cac: v })}
-        />
-        <SimSlider
-          label="Shipping per unit (₹)"
-          value={inputs.ship}
-          min={0}
-          max={500}
-          step={5}
-          prefix="₹"
-          onChange={(v) => onChange({ ship: v })}
         />
         <SimSlider
           label="RTO / return provision (%)"

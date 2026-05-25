@@ -34,6 +34,13 @@ export const computedSpecSchema = z.union([
   z.object({ type: z.literal("group_by"), groupKeys: z.array(z.string()) }),
   z.object({ type: z.literal("top_n"), rankBy: z.string(), n: z.number().optional() }),
   z.object({ type: z.literal("raw") }),
+  z.object({
+    type: z.literal("formula"),
+    outputColumn: z.string().describe("Name for the derived column"),
+    numerator: z.string().describe("Exact column key from the fetched rows to use as numerator"),
+    denominator: z.string().describe("Exact column key from the fetched rows to use as denominator"),
+    scale: z.number().optional().describe("Multiply result by this (e.g. 100 to express as percentage)"),
+  }),
 ])
 
 export type ComputedSpec = z.infer<typeof computedSpecSchema>

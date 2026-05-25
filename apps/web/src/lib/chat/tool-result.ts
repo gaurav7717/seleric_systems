@@ -13,6 +13,9 @@ export type ChatToolResult = {
   cube?: unknown
   cubes?: unknown[]
   available?: string[]
+  /** clarify tool only */
+  question?: string
+  options?: string[]
 }
 
 export async function runTool<T>(fn: () => Promise<ChatToolResult>): Promise<ChatToolResult> {

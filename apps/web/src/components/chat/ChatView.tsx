@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { ChainOfThought } from "@/components/chat/ChainOfThought"
 import { AssistantMarkdown } from "@/components/chat/AssistantMarkdown"
 import { InsightCanvas } from "@/components/chat/insight/InsightCanvas"
-import { partitionAssistantMessage } from "@/lib/chat/partition-message"
+import { partitionAssistantMessage, type ClarifyPrompt } from "@/lib/chat/partition-message"
 import { isToolRunning } from "@/lib/chat/tool-part"
 import { ToolResult } from "@/components/chat/ToolResult"
 
@@ -26,6 +26,27 @@ function UserBubble({ text }: { text: string }) {
   )
 }
 
+function ClarifyBubble({ prompt, onSelect }: { prompt: ClarifyPrompt; onSelect: (answer: string) => void }) {
+  return (
+    <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 font-sans">
+      <p className="text-sm text-stone-800 dark:text-night-100 mb-2">{prompt.question}</p>
+      {prompt.options && prompt.options.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {prompt.options.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => onSelect(opt)}
+              className="rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-night-900 px-3 py-1 text-xs text-stone-700 dark:text-night-200 hover:bg-amber-100 dark:hover:bg-amber-950/40 transition-colors"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function StreamingStatus({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 py-2 text-sm text-stone-500 dark:text-night-500 font-sans" role="status" aria-live="polite">
@@ -35,7 +56,15 @@ function StreamingStatus({ label }: { label: string }) {
   )
 }
 
-function AssistantMessage({ msg, isStreaming }: { msg: UIMessage; isStreaming?: boolean }) {
+function AssistantMessage({
+  msg,
+  isStreaming,
+  onClarify,
+}: {
+  msg: UIMessage
+  isStreaming?: boolean
+  onClarify: (answer: string) => void
+}) {
   const partitioned = partitionAssistantMessage(msg)
   const narrative = partitioned.narrativeParts.join("\n\n").trim()
   const anyToolRunning = msg.parts.some((p) => isToolRunning(p))
@@ -71,6 +100,10 @@ function AssistantMessage({ msg, isStreaming }: { msg: UIMessage; isStreaming?: 
 
       {narrative && <AssistantMarkdown content={narrative} />}
 
+      {partitioned.clarifyPrompt && !isStreaming && (
+        <ClarifyBubble prompt={partitioned.clarifyPrompt} onSelect={onClarify} />
+      )}
+
       {initialThinking && (
         <StreamingStatus label="Thinking…" />
       )}
@@ -87,8 +120,28 @@ function AssistantMessage({ msg, isStreaming }: { msg: UIMessage; isStreaming?: 
   )
 }
 
+function parseStreamError(err: Error | undefined): { isRateLimit: boolean; message: string } {
+  if (!err) return { isRateLimit: false, message: "The model returned an error." }
+  const raw = err.message ?? ""
+  const isRateLimit = /too_many_requests|rate.?limit|429/i.test(raw)
+  if (isRateLimit) {
+    return {
+      isRateLimit: true,
+      message: "The primary model hit a rate limit mid-response. The results above are partial. Retrying will use the fallback model.",
+    }
+  }
+  // Strip raw JSON from the message — show a clean fallback instead
+  const looksLikeJson = raw.trimStart().startsWith("{") || raw.trimStart().startsWith("[")
+  return {
+    isRateLimit: false,
+    message: looksLikeJson
+      ? "The model returned an error. Check the server logs panel for details."
+      : raw,
+  }
+}
+
 export function ChatView() {
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, regenerate, setMessages, status, error } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   })
 
@@ -114,6 +167,38 @@ export function ChatView() {
     sendMessage({ text })
   }
 
+  function handleClarify(answer: string) {
+    if (isLoading) return
+    sendMessage({ text: answer })
+  }
+
+  function handleRetry() {
+    if (isLoading) return
+    // Strip consecutive duplicate user messages created by previous failed retries,
+    // then regenerate — this avoids adding yet another user turn.
+    setMessages((prev) => {
+      const trimmed = [...prev]
+      // Remove any trailing assistant message that failed
+      if (trimmed.length > 0 && trimmed[trimmed.length - 1].role === "assistant") {
+        trimmed.pop()
+      }
+      // Collapse consecutive duplicate user messages down to one
+      while (trimmed.length >= 2) {
+        const last = trimmed[trimmed.length - 1]
+        const prev2 = trimmed[trimmed.length - 2]
+        const lastText = last.parts.filter(isTextUIPart).map((p) => p.text).join("")
+        const prevText = prev2.parts.filter(isTextUIPart).map((p) => p.text).join("")
+        if (last.role === "user" && prev2.role === "user" && lastText === prevText) {
+          trimmed.pop()
+        } else {
+          break
+        }
+      }
+      return trimmed
+    })
+    regenerate()
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -122,6 +207,17 @@ export function ChatView() {
   }
 
   const empty = messages.length === 0
+
+  // Collapse consecutive duplicate user messages (defensive — setMessages cleanup handles this
+  // on retry, but guards against any edge case where duplicates slip through to render).
+  const displayMessages = messages.filter((msg, i) => {
+    if (msg.role !== "user" || i === 0) return true
+    const prev = messages[i - 1]
+    if (prev.role !== "user") return true
+    const text = msg.parts.filter(isTextUIPart).map((p) => p.text).join("")
+    const prevText = prev.parts.filter(isTextUIPart).map((p) => p.text).join("")
+    return text !== prevText
+  })
 
   return (
     <div className="flex flex-col h-[calc(100vh-57px)] bg-stone-50 dark:bg-night-950">
@@ -148,8 +244,8 @@ export function ChatView() {
           </div>
         ) : (
           <div className="max-w-5xl mx-auto w-full px-4 py-6 space-y-8">
-            {messages.map((msg, index) => {
-              const isLast = index === messages.length - 1
+            {displayMessages.map((msg, index) => {
+              const isLast = index === displayMessages.length - 1
               const isStreamingMsg = isLoading && isLast && msg.role === "assistant"
               return (
                 <div
@@ -167,26 +263,32 @@ export function ChatView() {
                     />
                   ) : (
                     <div className="w-full max-w-full">
-                      <AssistantMessage msg={msg} isStreaming={isStreamingMsg} />
+                      <AssistantMessage msg={msg} isStreaming={isStreamingMsg} onClarify={handleClarify} />
                     </div>
                   )}
                 </div>
               )
             })}
 
-            {isLoading && messages[messages.length - 1]?.role === "user" && (
+            {isLoading && displayMessages[displayMessages.length - 1]?.role === "user" && (
               <StreamingStatus label="Starting analysis…" />
             )}
 
-            {isError && (
-              <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 font-sans">
-                <span className="shrink-0 font-semibold">Error</span>
-                <span>
-                  {error?.message ?? "The model returned an error. Check the server logs panel for details."}
-                  {" "}Try rephrasing your question or check that the Azure/Kimi endpoint is reachable.
-                </span>
-              </div>
-            )}
+            {isError && (() => {
+              const { isRateLimit, message } = parseStreamError(error)
+              return (
+                <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-sans ${isRateLimit ? "border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200" : "border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"}`}>
+                  <span className="shrink-0 font-semibold">{isRateLimit ? "Rate limit" : "Error"}</span>
+                  <span className="flex-1">{message}</span>
+                  <button
+                    onClick={handleRetry}
+                    className={`shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${isRateLimit ? "bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-100" : "bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-900 dark:text-red-100"}`}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )
+            })()}
 
             <div ref={bottomRef} />
           </div>

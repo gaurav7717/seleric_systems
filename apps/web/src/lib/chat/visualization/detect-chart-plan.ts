@@ -160,8 +160,26 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
 
   // 5b. Category + metrics
   if (profile.categoryKey && !profile.dateKey) {
-    const categories = new Set(rows.map((r) => String(r[profile.categoryKey!])))
     const metrics = profile.metricKeys.filter((k) => k !== profile.categoryKey)
+
+    // Rate-vs-rate scatter: e.g. CTR vs conversion rate by creative — shows outliers as labeled dots
+    const rateKeys = metrics.filter((k) => profile.columns.find((c) => c.key === k)?.role === "rate")
+    if (rateKeys.length >= 2) {
+      plans.push({
+        kind: "scatter",
+        title: `${prettyLabel(rateKeys[0])} vs ${prettyLabel(rateKeys[1])}`,
+        xKey: rateKeys[0],
+        labelKey: profile.categoryKey,
+        series: [
+          { key: rateKeys[0], label: prettyLabel(rateKeys[0]) },
+          { key: rateKeys[1], label: prettyLabel(rateKeys[1]) },
+        ],
+      })
+      plans.push({ kind: "table", title: "Full data", xKey: profile.categoryKey, series: [] })
+      return plans
+    }
+
+    const categories = new Set(rows.map((r) => String(r[profile.categoryKey!])))
     if (metrics.length === 1 && categories.size <= 6) {
       plans.push({
         kind: "pie",

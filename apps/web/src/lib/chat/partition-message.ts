@@ -19,6 +19,8 @@ const TOOL_LABELS: Record<string, string> = {
   getChannelBreakdown: "Channel breakdown",
   runQuery: "Cube query",
   runComputedQuery: "Computed analysis",
+  mergeQueryResults: "Cross-cube join",
+  clarify: "Clarifying question",
   exploreSchema: "Schema",
 }
 
@@ -39,6 +41,10 @@ function toolDetail(toolName: string, input: Record<string, unknown>): string {
       return (input.label as string) ?? "custom query"
     case "runComputedQuery":
       return (input.label as string) ?? ((input.compute as Record<string, unknown>)?.type as string) ?? "computed"
+    case "mergeQueryResults":
+      return (input.label as string) ?? `join on ${String(input.joinKey ?? "key")}`
+    case "clarify":
+      return ""
     case "exploreSchema":
       return (input.cubeName as string) ?? "all cubes"
     default:
@@ -57,17 +63,24 @@ function isCoTNarration(text: string, hasFollowingTool: boolean): boolean {
   return sentences.length <= 2
 }
 
+export type ClarifyPrompt = {
+  question: string
+  options?: string[]
+}
+
 export type PartitionedAssistantMessage = {
   cotSteps: CotStep[]
   narrativeParts: string[]
   mergedData: ReturnType<typeof mergeToolOutputs>
   hasToolActivity: boolean
+  clarifyPrompt: ClarifyPrompt | null
 }
 
 export function partitionAssistantMessage(msg: UIMessage): PartitionedAssistantMessage {
   const cotSteps: CotStep[] = []
   const narrativeParts: string[] = []
   const toolOutputs: Array<{ toolName: string; result: ChatToolResult }> = []
+  let clarifyPrompt: ClarifyPrompt | null = null
 
   let pendingNarration = ""
 
@@ -106,11 +119,13 @@ export function partitionAssistantMessage(msg: UIMessage): PartitionedAssistantM
       state = "running"
     }
 
-    if ((part as { state?: string }).state === "output-available" && isDataTool(toolName)) {
-      toolOutputs.push({
-        toolName,
-        result: (part as { output: ChatToolResult }).output,
-      })
+    if ((part as { state?: string }).state === "output-available") {
+      const output = (part as { output: ChatToolResult }).output
+      if (isDataTool(toolName)) {
+        toolOutputs.push({ toolName, result: output })
+      } else if (toolName === "clarify" && output?.type === "clarify" && output.question) {
+        clarifyPrompt = { question: output.question, options: output.options }
+      }
     }
 
     cotSteps.push({
@@ -159,5 +174,6 @@ export function partitionAssistantMessage(msg: UIMessage): PartitionedAssistantM
     narrativeParts,
     mergedData: mergeToolOutputs(toolOutputs),
     hasToolActivity: cotSteps.length > 0,
+    clarifyPrompt,
   }
 }

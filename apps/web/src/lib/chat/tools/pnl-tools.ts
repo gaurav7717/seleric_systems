@@ -38,26 +38,34 @@ export function createPnlTools(schema: SchemaCache) {
   return {
     getDailyPnl: {
       description:
-        "Get P&L for any date range: revenue, ad spend, gross profit, net profit, orders. Supports single day or multi-day trend.",
+        "Get P&L for any date range: revenue, ad spend, gross profit, net profit, orders. Supports single day or multi-day trend. Pass metrics to limit to specific measures.",
       inputSchema: dateRangeSchema.extend({
         groupByDay: z
           .boolean()
           .optional()
           .default(false)
           .describe("false = one aggregate row for the whole range (default). true = one row per day for charts."),
+        metrics: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Optional subset of metrics to return — e.g. ['revenue','ad_spend'] for a simple comparison. Omit for the full P&L suite (triggers a comprehensive dashboard)."
+          ),
       }),
       execute: ({
         startDate,
         endDate,
         groupByDay,
+        metrics,
       }: {
         startDate: string
         endDate?: string
         groupByDay?: boolean
+        metrics?: string[]
       }) =>
         runTool(async () => {
           const end = endDate ?? startDate
-          const rows = await fetchDailyPnl(startDate, end, groupByDay ?? false)
+          const rows = await fetchDailyPnl(startDate, end, groupByDay ?? false, metrics)
           return okRows(rows, { type: rows.length > 2 ? "trend" : "kpi" })
         }),
     },

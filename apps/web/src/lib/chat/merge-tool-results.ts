@@ -18,6 +18,7 @@ const DATA_TOOLS = new Set([
   "getChannelBreakdown",
   "runQuery",
   "runComputedQuery",
+  "mergeQueryResults",
 ])
 
 export function isDataTool(name: string): boolean {

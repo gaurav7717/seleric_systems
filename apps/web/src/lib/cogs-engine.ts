@@ -116,9 +116,10 @@ export function simulate(inputs: SimInputs): SimResult {
   const requiredReductionPct = cogs > 0 && targetVendorCost < cogs
     ? ((cogs - targetVendorCost) / cogs) * 100
     : 0
+  // when targetVendorCost ≤ 0 the gap cannot be closed by vendor negotiation alone → 100%
   const currentCostGapPct = targetVendorCost > 0
     ? Math.min(100, Math.max(0, (cogs / targetVendorCost) * 100))
-    : cogs <= 0 ? 100 : 0
+    : 100
 
   const classification = classifyRow(netProfit, cmPercent)
   const recommendation = buildRecommendation(classification, cac, targetVendorCost)
@@ -143,7 +144,7 @@ export const DEFAULT_INPUTS: SimInputs = {
   cogsShipping: 117,
   packaging: 10,
   cac: 500,
-  ship: 80,
+  ship: 0,  // additional outbound cost beyond what's already in cogsShipping (default: none)
   rtoPercent: 12,
   pgwPercent: 2,
   gstInclusive: true,

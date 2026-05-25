@@ -44,7 +44,9 @@ export function InsightDataTable({
   const headers = (
     picked.length
       ? picked
-      : Object.keys(rows[0]).filter((k) => !k.endsWith("__label") && !/surrogate|\.id$/i.test(k))
+      : Object.keys(rows[0]).filter(
+          (k) => !k.endsWith("__label") && !/surrogate|\.id$|__missing$/i.test(k)
+        )
   )
   const profile = analyzeColumns(rows as CubeRow[])
   const summary = showSummary ? aggregatePeriod(rows as CubeRow[]) : null
@@ -83,7 +85,7 @@ export function InsightDataTable({
                   return (
                     <td
                       key={h}
-                      className={`py-2 px-2 text-right whitespace-nowrap ${colorClass}`}
+                      className={`py-2 px-2 text-left whitespace-nowrap ${colorClass}`}
                     >
                       {formatCell(h, val)}
                     </td>
@@ -94,7 +96,7 @@ export function InsightDataTable({
             {summary && (
               <tr className="border-t-2 border-stone-300 dark:border-night-700 bg-stone-100/60 dark:bg-night-850 font-semibold">
                 {headers.map((h, i) => (
-                  <td key={h} className="py-2 px-2 text-right text-stone-900 dark:text-night-50">
+                  <td key={h} className="py-2 px-2 text-left text-stone-900 dark:text-night-50">
                     {i === 0 ? "Total / avg" : summary[h] != null ? formatCell(h, summary[h]) : "—"}
                   </td>
                 ))}

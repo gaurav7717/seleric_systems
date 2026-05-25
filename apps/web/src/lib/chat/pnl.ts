@@ -24,17 +24,39 @@ export function enrichPnlRows(rows: CubeRow[]): CubeRow[] {
   })
 }
 
+function rowMatchesMetrics(key: string, metrics: string[]): boolean {
+  const kl = key.toLowerCase()
+  return metrics.some((m) => {
+    const ml = m.toLowerCase()
+    if (kl.includes(ml)) return true
+    if ((ml === "revenue" || ml === "sales") && (kl.includes("sales") || kl.includes("revenue"))) return true
+    if ((ml === "spend" || ml === "ad_spend") && kl.includes("spend")) return true
+    if (ml === "profit" && kl.includes("profit")) return true
+    return false
+  })
+}
+
 export async function fetchDailyPnl(
   startDate: string,
   endDate: string,
-  groupByDay: boolean
+  groupByDay: boolean,
+  metricsFilter?: string[]
 ): Promise<CubeRow[]> {
   const raw = await callCubeTool("cube_daily_pnl", {
     start_date: startDate,
     end_date: endDate,
     group_by_day: groupByDay,
   })
-  return enrichPnlRows(extractRows(raw))
+  const rows = enrichPnlRows(extractRows(raw))
+  if (!metricsFilter?.length) return rows
+  return rows.map((row) => {
+    const out: CubeRow = {}
+    for (const [k, v] of Object.entries(row)) {
+      if (/report_date|\.day$|\.week$|\.month$/i.test(k)) { out[k] = v; continue }
+      if (rowMatchesMetrics(k, metricsFilter)) out[k] = v
+    }
+    return out
+  })
 }
 
 export type PnlGranularity = "day" | "week" | "month"

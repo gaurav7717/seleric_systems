@@ -41,8 +41,7 @@ export function UnitEconomicsGrid({
     expectedRevenue,
   } = result
 
-  const alreadyAtTarget =
-    targetVendorCost >= result.netRev - result.totalVarCost || requiredReductionPct <= 0
+  const alreadyAtTarget = requiredReductionPct <= 0
 
   const scaleLabel =
     targetProfit > 0

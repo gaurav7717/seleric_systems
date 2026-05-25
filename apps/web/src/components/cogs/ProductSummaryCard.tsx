@@ -9,9 +9,13 @@ const fmt = (n: number) =>
 export function ProductSummaryCard({
   product,
   variant,
+  cogsShipping = 0,
+  packaging = 0,
 }: {
   product: ProductGroup
   variant?: VariantData
+  cogsShipping?: number
+  packaging?: number
 }) {
   if (variant) {
     const variantAsp =
@@ -36,7 +40,12 @@ export function ProductSummaryCard({
             sub={`${(variant.qtyShare * 100).toFixed(0)}% of product`}
             compact
           />
-          <MetricTile label="Effective COGS" value={fmt(variant.cogs)} sub="per unit" compact />
+          <MetricTile
+            label="Effective product cost"
+            value={fmt(Math.max(0, variant.cogs - cogsShipping - packaging))}
+            sub={`₹${Math.round(variant.cogs)} − ship ₹${cogsShipping} − pkg ₹${packaging}`}
+            compact
+          />
           <MetricTile
             label="Gross sales"
             value={variant.grossRevenue > 0 ? fmt(variant.grossRevenue) : "—"}
@@ -88,7 +97,12 @@ export function ProductSummaryCard({
           sub={product.variants.length > 1 ? `${product.variants.length} variants` : undefined}
           compact
         />
-        <MetricTile label="Effective COGS" value={fmt(product.avgCogs)} sub="per unit" compact />
+        <MetricTile
+          label="Effective product cost"
+          value={fmt(Math.max(0, product.avgCogs - cogsShipping - packaging))}
+          sub={`₹${Math.round(product.avgCogs)} − ship ₹${cogsShipping} − pkg ₹${packaging}`}
+          compact
+        />
         <MetricTile
           label="Gross sales"
           value={product.grossRevenue > 0 ? fmt(product.grossRevenue) : "—"}

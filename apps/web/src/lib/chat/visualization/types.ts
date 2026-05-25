@@ -76,6 +76,7 @@ export type ChartPlan = {
   kind: ChartKind
   title?: string
   xKey: string
+  labelKey?: string
   series: ChartSeries[]
   options?: ChartPlanOptions
 }

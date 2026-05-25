@@ -9,6 +9,8 @@ const TOOL_LABELS: Record<string, string> = {
   getChannelBreakdown: "Channel Breakdown",
   runQuery: "Data Query",
   runComputedQuery: "Computed Analysis",
+  mergeQueryResults: "Cross-cube Join",
+  clarify: "Clarifying question",
   exploreSchema: "Schema",
 }
 

@@ -8,8 +8,8 @@ export function formatInr(value: unknown, opts?: { compact?: boolean; signed?: b
 
   if (opts?.compact !== false) {
     if (abs >= 1_00_00_000) return `${sign}₹${(abs / 1_00_00_000).toFixed(2)}Cr`
-    if (abs >= 1_00_000) return `${sign}₹${(abs / 1_00_000).toFixed(1)}L`
-    if (abs >= 1_000) return `${sign}₹${(abs / 1_000).toFixed(1)}K`
+    if (abs >= 1_00_000) return `${sign}₹${(abs / 1_00_000).toFixed(2)}L`
+    if (abs >= 1_000) return `${sign}₹${(abs / 1_000).toFixed(2)}K`
   }
 
   if (Number.isInteger(n) || abs >= 100) {
@@ -22,8 +22,8 @@ export function formatCount(value: unknown): string {
   if (value == null) return "—"
   const n = Number(value)
   if (!isFinite(n)) return String(value)
-  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(2)}K`
   return n.toLocaleString("en-IN", { maximumFractionDigits: 0 })
 }
 

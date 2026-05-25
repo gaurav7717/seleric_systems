@@ -10,10 +10,12 @@ Every output is traceable to an input.
 | Symbol | Name | Source | Notes |
 |---|---|---|---|
 | `ASP` | Average selling price (gross) | Orders data | Includes GST if tax-inclusive |
-| `COGS` | Vendor / product cost per unit | `dim_sku_cost_version` | Point-in-time, never overwritten |
+| `PRODUCT_COST` | Pure vendor / product cost per unit | `effective_unit_cost_avg − COGS_SHIP − PKG_CONST` | Stripped of embedded ship/pkg |
+| `COGS_SHIP` | Shipping component embedded in DB COGS | Constant = **117** | Stripped to isolate product cost |
+| `PKG_CONST` | Packaging component embedded in DB COGS | Constant = **10** | Stripped to isolate product cost |
+| `EFFECTIVE_COGS` | Full unit cost as stored in DB | `effective_unit_cost_avg` | = PRODUCT_COST + COGS_SHIP + PKG_CONST |
 | `CAC` | Cost per acquired order | `Ad Spend / Orders` | 0 or null if ad_spend = 0 |
-| `SHIP` | Shipping cost per unit | Config / cost sheet | Fixed or per-shipment |
-| `PKG` | Packaging cost per unit | Config | Optional |
+| `SHIP` | Outbound courier / shipping cost per unit | Config / cost sheet | Separate from COGS_SHIP |
 | `PGW%` | Payment gateway fee % | Config | Applied to net revenue |
 | `RTO%` | Return / RTO provision % | Config | Applied to net revenue |
 | `COD` | COD charge per unit | Config | 0 if not COD |
@@ -22,6 +24,20 @@ Every output is traceable to an input.
 | `GST_INCL` | Is ASP tax-inclusive? | Config flag | `true` / `false` |
 | `TARGET_MARGIN%` | Desired net profit margin | Simulation input | e.g. 0.10 |
 | `TARGET_PROFIT` | Desired absolute profit (₹) | Simulation input | e.g. ₹80,000 |
+
+### COGS decomposition
+
+```
+EFFECTIVE_COGS  = PRODUCT_COST + COGS_SHIP + PKG_CONST
+                = PRODUCT_COST + 117 + 10
+                = PRODUCT_COST + 127
+
+PRODUCT_COST    = EFFECTIVE_COGS − 117 − 10
+```
+
+> The DB field `effective_unit_cost_avg` stores `EFFECTIVE_COGS`.
+> Strip the constants to get `PRODUCT_COST`, which is the negotiation lever.
+> `COGS_SHIP` and `PKG_CONST` are fixed — they are NOT negotiable per-unit costs.
 
 ---
 
@@ -50,11 +66,12 @@ PGW_COST  = NET_REV × PGW%
 RTO_COST  = NET_REV × RTO%
 MKT_COST  = NET_REV × MKT%
 
-TOTAL_VAR = CAC + SHIP + PKG + PGW_COST + RTO_COST + COD + MKT_COST
+TOTAL_VAR = CAC + SHIP + PGW_COST + RTO_COST + COD + MKT_COST
 ```
 
-> `TOTAL_VAR` is the full variable cost stack excluding COGS.
-> COGS is kept separate because it is the negotiation lever.
+> `TOTAL_VAR` is the full variable cost stack excluding COGS components.
+> `COGS_SHIP` and `PKG_CONST` are kept inside `EFFECTIVE_COGS`, not in `TOTAL_VAR`.
+> This keeps `PRODUCT_COST` (the negotiation lever) cleanly separated from logistics variables.
 
 ---
 
@@ -63,10 +80,12 @@ TOTAL_VAR = CAC + SHIP + PKG + PGW_COST + RTO_COST + COD + MKT_COST
 ### Contribution per unit
 
 ```
-CONTRIBUTION = NET_REV - COGS
+CONTRIBUTION = NET_REV - EFFECTIVE_COGS
+             = NET_REV - PRODUCT_COST - COGS_SHIP - PKG_CONST
 ```
 
-> Contribution covers COGS only. Does not include ad or logistics.
+> Contribution covers the full COGS stack (product cost + embedded ship + pkg).
+> Does not include CAC, outbound shipping, or payment costs.
 
 ### Contribution margin %
 
@@ -77,7 +96,8 @@ CM% = CONTRIBUTION / NET_REV
 ### Net profit per unit
 
 ```
-NET_PROFIT = NET_REV - COGS - TOTAL_VAR
+NET_PROFIT = NET_REV - EFFECTIVE_COGS - TOTAL_VAR
+           = NET_REV - PRODUCT_COST - COGS_SHIP - PKG_CONST - TOTAL_VAR
 ```
 
 ### Net profit margin %
@@ -112,42 +132,45 @@ These are the core negotiation levers.
 
 ### Break-even vendor cost
 
-The vendor cost at which net profit = 0.
+The **product cost** at which net profit = 0 (COGS_SHIP and PKG_CONST held fixed).
 
 ```
-BE_VENDOR_COST = NET_REV - TOTAL_VAR
+BE_VENDOR_COST = NET_REV - TOTAL_VAR - COGS_SHIP - PKG_CONST
 ```
 
-> If current COGS > BE_VENDOR_COST, the SKU is loss-making at current cost.
+> If PRODUCT_COST > BE_VENDOR_COST, the SKU is loss-making at current cost.
+> This is the max you can pay the vendor for the product itself.
 
 ### Target vendor cost (for desired margin)
 
-The vendor cost required to achieve `TARGET_MARGIN%`.
+The **product cost** required to achieve `TARGET_MARGIN%`.
 
 ```
-TARGET_VENDOR_COST = NET_REV × (1 - TARGET_MARGIN%) - TOTAL_VAR
+TARGET_VENDOR_COST = NET_REV × (1 - TARGET_MARGIN%) - TOTAL_VAR - COGS_SHIP - PKG_CONST
 ```
 
 > Derivation:
->   NET_PROFIT = NET_REV - COGS - TOTAL_VAR
+>   NET_PROFIT = NET_REV - EFFECTIVE_COGS - TOTAL_VAR
 >   Set NET_PROFIT = NET_REV × TARGET_MARGIN%
->   → COGS = NET_REV - (NET_REV × TARGET_MARGIN%) - TOTAL_VAR
->   → COGS = NET_REV × (1 - TARGET_MARGIN%) - TOTAL_VAR
+>   → EFFECTIVE_COGS = NET_REV × (1 - TARGET_MARGIN%) - TOTAL_VAR
+>   → PRODUCT_COST = NET_REV × (1 - TARGET_MARGIN%) - TOTAL_VAR - COGS_SHIP - PKG_CONST
+>
+> COGS_SHIP and PKG_CONST are held constant — only PRODUCT_COST is the negotiation lever.
 
-### Required COGS reduction (absolute)
-
-```
-REQUIRED_REDUCTION = COGS - TARGET_VENDOR_COST
-```
-
-> Positive = cost needs to come down.
-> Negative = current cost already below target (no reduction needed).
-
-### Required COGS reduction %
+### Required product cost reduction (absolute)
 
 ```
-if COGS > 0:
-    REQUIRED_REDUCTION_PCT = REQUIRED_REDUCTION / COGS
+REQUIRED_REDUCTION = PRODUCT_COST - TARGET_VENDOR_COST
+```
+
+> Positive = product cost needs to come down.
+> Negative = current product cost already below target (no reduction needed).
+
+### Required product cost reduction %
+
+```
+if PRODUCT_COST > 0:
+    REQUIRED_REDUCTION_PCT = REQUIRED_REDUCTION / PRODUCT_COST
 else:
     REQUIRED_REDUCTION_PCT = null
 ```
@@ -311,28 +334,33 @@ Additional rules:
 ## 11. Formula dependency map
 
 ```
+EFFECTIVE_COGS  = PRODUCT_COST + COGS_SHIP(117) + PKG_CONST(10)
+
 ASP
  └─ NET_REV  (÷ GST factor)
      ├─ PGW_COST   (× PGW%)
      ├─ RTO_COST   (× RTO%)
      ├─ MKT_COST   (× MKT%)
-     ├─ CONTRIBUTION  (- COGS)
+     ├─ CONTRIBUTION  (- EFFECTIVE_COGS)
      │    └─ CM%   (÷ NET_REV)
-     ├─ TOTAL_VAR  (CAC + SHIP + PKG + PGW_COST + RTO_COST + COD + MKT_COST)
-     ├─ NET_PROFIT  (- COGS - TOTAL_VAR)
+     ├─ TOTAL_VAR  (CAC + SHIP + PGW_COST + RTO_COST + COD + MKT_COST)
+     ├─ NET_PROFIT  (- EFFECTIVE_COGS - TOTAL_VAR)
      │    ├─ NPM%           (÷ NET_REV)
      │    └─ ORDERS_REQUIRED (TARGET_PROFIT ÷ NET_PROFIT)
      │         ├─ AD_SPEND_REQUIRED  (× CAC)
      │         └─ EXPECTED_REVENUE   (× ASP)
-     ├─ BE_VENDOR_COST     (- TOTAL_VAR)
-     └─ TARGET_VENDOR_COST (× (1 - TARGET_MARGIN%) - TOTAL_VAR)
-          └─ REQUIRED_REDUCTION      (COGS - TARGET_VENDOR_COST)
-               └─ REQUIRED_REDUCTION_PCT  (÷ COGS)
+     ├─ BE_VENDOR_COST     (- TOTAL_VAR - COGS_SHIP - PKG_CONST)
+     └─ TARGET_VENDOR_COST (× (1 - TARGET_MARGIN%) - TOTAL_VAR - COGS_SHIP - PKG_CONST)
+          └─ REQUIRED_REDUCTION      (PRODUCT_COST - TARGET_VENDOR_COST)
+               └─ REQUIRED_REDUCTION_PCT  (÷ PRODUCT_COST)
 
 CAC
  ├─ TOTAL_VAR
  ├─ ROAS   (ASP ÷ CAC)
  └─ AD_SPEND_PCT  (CAC ÷ ASP)
+
+PRODUCT_COST  (negotiation lever — only this changes in scenarios and vendor talks)
+COGS_SHIP, PKG_CONST  (fixed constants — held constant in all break-even/scenario math)
 ```
 
 ---
@@ -341,15 +369,18 @@ CAC
 
 ```
 Inputs:
-  ASP       = ₹980
-  COGS      = ₹430
-  CAC       = ₹620
-  SHIP      = ₹90
-  RTO%      = 12%
-  PGW%      = 2%
-  GST_INCL  = true, TAX_RATE = 18%
-  TARGET_MARGIN% = 10%
-  TARGET_PROFIT  = ₹80,000
+  ASP              = ₹980
+  EFFECTIVE_COGS   = ₹430  (from DB: effective_unit_cost_avg)
+  PRODUCT_COST     = 430 − 117 − 10 = ₹303  (displayed as "Effective product cost")
+  COGS_SHIP        = ₹117 (constant)
+  PKG_CONST        = ₹10  (constant)
+  CAC              = ₹620
+  SHIP             = ₹90  (outbound courier)
+  RTO%             = 12%
+  PGW%             = 2%
+  GST_INCL         = true, TAX_RATE = 18%
+  TARGET_MARGIN%   = 10%
+  TARGET_PROFIT    = ₹80,000
 
 Step 1 — Net revenue:
   NET_REV = 980 / 1.18 = ₹830.51
@@ -359,28 +390,28 @@ Step 2 — Variable costs:
   RTO_COST  = 830.51 × 0.12 = ₹99.66
   TOTAL_VAR = 620 + 90 + 16.61 + 99.66 = ₹826.27
 
-Step 3 — Unit economics:
-  CONTRIBUTION = 830.51 - 430     = ₹400.51
+Step 3 — Effective COGS:
+  EFFECTIVE_COGS = 303 + 117 + 10 = ₹430  (reconstructed from product cost + constants)
+
+Step 4 — Unit economics:
+  CONTRIBUTION = 830.51 − 430     = ₹400.51
   CM%          = 400.51 / 830.51  = 48.2%
-  NET_PROFIT   = 830.51 - 430 - 826.27 = -₹425.76   ← loss
+  NET_PROFIT   = 830.51 − 430 − 826.27 = −₹425.76   ← loss
   ROAS         = 980 / 620        = 1.58x
 
-Step 4 — Break-even and target cost:
-  BE_VENDOR_COST     = 830.51 - 826.27 = ₹4.24
-  TARGET_VENDOR_COST = 830.51 × (1 - 0.10) - 826.27 = 747.46 - 826.27 = -₹78.81
+Step 5 — Break-even and target product cost:
+  BE_VENDOR_COST     = 830.51 − 826.27 − 127 = −₹122.76
+  TARGET_VENDOR_COST = 830.51 × 0.90 − 826.27 − 127 = 747.46 − 953.27 = −₹205.81
 
-  → Both are negative. This SKU cannot be made profitable
-    through vendor negotiation alone at current CAC and RTO.
+  → Both are negative. Vendor negotiation alone cannot rescue this SKU.
+    CAC reduction is the primary lever.
 
-Step 5 — Classification:
-  NET_PROFIT < 0, CM% > 0, REQUIRED_REDUCTION_PCT > MAX_NEGOTIABLE_RED_PCT
-  → BORDERLINE
+Step 6 — Classification:
+  NET_PROFIT < 0, CM% > 0 → BORDERLINE
+  → "Cut CAC below ₹403. Vendor renegotiation alone cannot save this SKU."
 
-  Recommended action:
-  "Contribution positive but ad cost kills margin. Cut CAC below ₹400 or renegotiate COGS."
-
-Step 6 — Scale (not applicable):
-  ORDERS_REQUIRED = null  (NET_PROFIT <= 0)
+Step 7 — Scale (not applicable):
+  ORDERS_REQUIRED = null  (NET_PROFIT ≤ 0)
 ```
 
 ---
@@ -389,15 +420,18 @@ Step 6 — Scale (not applicable):
 
 ```
 Inputs:
-  ASP       = ₹1,850
-  COGS      = ₹476
-  CAC       = ₹538
-  SHIP      = ₹80
-  RTO%      = 8%
-  PGW%      = 2%
-  GST_INCL  = true, TAX_RATE = 18%
-  TARGET_MARGIN% = 10%
-  TARGET_PROFIT  = ₹80,000
+  ASP              = ₹1,850
+  EFFECTIVE_COGS   = ₹476  (from DB: effective_unit_cost_avg)
+  PRODUCT_COST     = 476 − 117 − 10 = ₹349  (displayed as "Effective product cost")
+  COGS_SHIP        = ₹117 (constant)
+  PKG_CONST        = ₹10  (constant)
+  CAC              = ₹538
+  SHIP             = ₹117  (outbound courier, default)
+  RTO%             = 8%
+  PGW%             = 2%
+  GST_INCL         = true, TAX_RATE = 18%
+  TARGET_MARGIN%   = 10%
+  TARGET_PROFIT    = ₹80,000
 
 Step 1 — Net revenue:
   NET_REV = 1850 / 1.18 = ₹1,567.80
@@ -405,29 +439,32 @@ Step 1 — Net revenue:
 Step 2 — Variable costs:
   PGW_COST  = 1567.80 × 0.02 = ₹31.36
   RTO_COST  = 1567.80 × 0.08 = ₹125.42
-  TOTAL_VAR = 538 + 80 + 31.36 + 125.42 = ₹774.78
+  TOTAL_VAR = 538 + 117 + 31.36 + 125.42 = ₹811.78
 
-Step 3 — Unit economics:
-  CONTRIBUTION = 1567.80 - 476    = ₹1,091.80
+Step 3 — Effective COGS:
+  EFFECTIVE_COGS = 349 + 117 + 10 = ₹476
+
+Step 4 — Unit economics:
+  CONTRIBUTION = 1567.80 − 476     = ₹1,091.80
   CM%          = 1091.80 / 1567.80 = 69.6%
-  NET_PROFIT   = 1567.80 - 476 - 774.78 = ₹317.02
-  ROAS         = 1850 / 538       = 3.44x
+  NET_PROFIT   = 1567.80 − 476 − 811.78 = ₹280.02
+  ROAS         = 1850 / 538        = 3.44x
 
-Step 4 — Break-even and target cost:
-  BE_VENDOR_COST     = 1567.80 - 774.78 = ₹793.02
-  TARGET_VENDOR_COST = 1567.80 × 0.90 - 774.78 = 1411.02 - 774.78 = ₹636.24
-  REQUIRED_REDUCTION = 476 - 636.24 = -₹160.24  (negative = already below target)
-  REQUIRED_REDUCTION_PCT = -0.337  (no reduction needed)
+Step 5 — Break-even and target product cost:
+  BE_VENDOR_COST     = 1567.80 − 811.78 − 127 = ₹629.02
+  TARGET_VENDOR_COST = 1567.80 × 0.90 − 811.78 − 127 = 1411.02 − 938.78 = ₹472.24
+  REQUIRED_REDUCTION = 349 − 472.24 = −₹123.24  (negative = already below target)
+  REQUIRED_REDUCTION_PCT = 0  (no reduction needed)
 
-Step 5 — Classification:
-  NET_PROFIT > 0, CM% >= 0.30, ROAS >= 2.0
-  → WINNER
+Step 6 — Classification:
+  NET_PROFIT > 0, CM% >= 0.30, ROAS >= 2.0 → WINNER
+  → "Unit economics are healthy. Scale ad spend to maximise absolute profit."
 
-Step 6 — Scale:
-  ORDERS_REQUIRED    = ceil(80000 / 317.02) = 253 orders
-  AD_SPEND_REQUIRED  = 253 × 538            = ₹136,114
-  EXPECTED_REVENUE   = 253 × 1850           = ₹468,050
-  EXPECTED_PROFIT    = 253 × 317.02         = ₹80,206
+Step 7 — Scale:
+  ORDERS_REQUIRED    = ceil(80000 / 280.02) = 286 orders
+  AD_SPEND_REQUIRED  = 286 × 538            = ₹1,53,868
+  EXPECTED_REVENUE   = 286 × 1850           = ₹5,29,100
+  EXPECTED_PROFIT    = 286 × 280.02         = ₹80,086
 ```
 
 ---
@@ -515,5 +552,5 @@ def simulate_sku_profitability(
 
 ---
 
-*Last updated: 2026-05-24*
-*Formula version: v1.0 — matches simulation panel demo*
+*Last updated: 2026-05-25*
+*Formula version: v1.1 — COGS split into PRODUCT_COST + COGS_SHIP(117) + PKG_CONST(10)*

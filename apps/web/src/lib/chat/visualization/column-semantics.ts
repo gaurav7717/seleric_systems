@@ -77,7 +77,8 @@ export function isPnlShape(profile: DataProfile): boolean {
   const hasRevenue = roles.includes("revenue")
   const hasSpend = roles.includes("spend")
   const hasProfit = roles.includes("profit")
-  return Boolean(profile.dateKey && hasRevenue && (hasSpend || hasProfit))
+  // Revenue + spend + profit all required — revenue vs spend alone is a comparison, not a full P&L
+  return Boolean(profile.dateKey && hasRevenue && hasSpend && hasProfit)
 }
 
 export function hasFunnelColumns(keys: string[]): boolean {
