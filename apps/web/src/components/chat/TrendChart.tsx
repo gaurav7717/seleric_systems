@@ -18,6 +18,8 @@ import {
   measureFormat,
   type MeasureFormat,
   prettyLabel,
+  timeAxisMinTickGap,
+  timeAxisTickInterval,
 } from "@/components/charts/format"
 
 interface Props {
@@ -107,7 +109,14 @@ export function TrendChart({ rows }: Props) {
         margin={{ top: 4, right: hasRight ? 52 : 12, left: 0, bottom: 0 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
-        <XAxis dataKey="date" tick={{ fill: ct.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
+        <XAxis
+          dataKey="date"
+          tick={{ fill: ct.tick, fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          interval={timeAxisTickInterval(data.length)}
+          minTickGap={timeAxisMinTickGap(data.length)}
+        />
         {hasLeft && (
           <YAxis
             yAxisId="left"

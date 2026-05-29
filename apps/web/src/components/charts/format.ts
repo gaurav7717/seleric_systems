@@ -20,6 +20,16 @@ export function shortDate(iso: string): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-IN", { month: "short", day: "numeric" })
 }
 
+export function timeAxisTickInterval(pointCount: number): number | "preserveStartEnd" {
+  if (pointCount <= 14) return 0
+  if (pointCount <= 45) return "preserveStartEnd"
+  return Math.max(1, Math.ceil(pointCount / 8))
+}
+
+export function timeAxisMinTickGap(pointCount: number): number {
+  return pointCount > 90 ? 28 : 18
+}
+
 export function prettyLabel(key: string): string {
   return key
     .replace(/^[^.]+\./, "")

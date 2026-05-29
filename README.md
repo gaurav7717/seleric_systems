@@ -137,6 +137,7 @@ Full folder reference: [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md)
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System diagram, service map, external connections |
 | [docs/DATA_FLOW.md](docs/DATA_FLOW.md) | End-to-end flows: signal → insight → action → outcome |
+| [docs/CHAT.md](docs/CHAT.md) | Chat architecture, tools, streaming behavior, charts, sandbox, debugging |
 | [docs/TECH_STACK.md](docs/TECH_STACK.md) | Technology choices with rationale and versions |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional + non-functional requirements, phase gates |
 | [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md) | Full annotated folder tree |

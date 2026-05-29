@@ -60,6 +60,14 @@ export function detectInsightLayout(plans: ChartPlan[]): InsightLayout {
   return plans.length ? "single_chart" : "table_only"
 }
 
+// Chart kinds that the Python sandbox can force via chart_hint.
+// Values must match ChartKind from types.ts.
+const FORCEABLE_KINDS = new Set([
+  "line", "area", "stacked_area", "bar", "grouped_bar", "stacked_bar",
+  "horizontal_bar", "scatter", "bubble", "pie", "donut", "treemap",
+  "heatmap", "waterfall", "funnel", "histogram", "radar", "table",
+])
+
 export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[] {
   if (!rows.length) return [{ kind: "table", xKey: "x", series: [] }]
 
@@ -67,7 +75,22 @@ export function detectChartPlan(rows: CubeRow[], hintType?: string): ChartPlan[]
   const plans: ChartPlan[] = []
   const xDate = profile.dateKey ?? profile.categoryKey ?? profile.metricKeys[0] ?? "x"
 
-  // 0. Ranked list hint — pair_count / top_n outputs always render as horizontal bar
+  // 0a. Python sandbox forced chart kind — bypass auto-detection entirely.
+  if (hintType && FORCEABLE_KINDS.has(hintType)) {
+    const xKey = profile.dateKey ?? profile.categoryKey ?? Object.keys(rows[0])[0] ?? "x"
+    const metrics = profile.metricKeys.length ? profile.metricKeys : Object.keys(rows[0]).filter((k) => k !== xKey)
+    return [
+      {
+        kind: hintType as ChartPlan["kind"],
+        title: prettyLabel(metrics[0] ?? "value"),
+        xKey,
+        series: seriesFromKeys(metrics.slice(0, 5), profile),
+      },
+      { kind: "table", title: "Full data", xKey, series: [] },
+    ]
+  }
+
+  // 0b. Ranked list hint — pair_count / top_n outputs always render as horizontal bar
   if (hintType === "ranked" && profile.categoryKey) {
     const metrics = profile.metricKeys.filter((k) => k !== profile.categoryKey)
     if (metrics.length >= 1) {

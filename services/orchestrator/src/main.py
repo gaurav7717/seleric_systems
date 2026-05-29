@@ -19,6 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import router
+from src.sandbox.routes import router as sandbox_router
 from src.db.client import close_pool, get_pool, health_check as db_health
 from src.memory.cube_client import health_check as cube_health
 from src.memory.redis_client import get_client as get_redis, health_check as redis_health
@@ -69,6 +70,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(sandbox_router)
 
 
 @app.get("/health")

@@ -7,20 +7,29 @@ import { PeriodCompareKpis } from "@/components/charts/PeriodCompareKpis"
 import { DataTable } from "@/components/chat/DataTable"
 import { KpiCards } from "@/components/chat/KpiCards"
 import { TrendChart } from "@/components/chat/TrendChart"
-import { daysAgoIST, todayIST } from "@/lib/chat/dates"
+import { DateRangeControls } from "@/components/dashboard/DateRangeControls"
 import { funnelFromAggregate } from "@/lib/dashboard/page-helpers"
 import { fetchAdsDashboardData } from "@/lib/dashboard/queries/ads"
+import {
+  dateRangeLabel,
+  parseDashboardDateRange,
+  type DashboardSearchParams,
+} from "@/lib/dashboard/date-ranges"
 
 export const revalidate = 60
 
-export default async function AdsPage() {
-  const end = todayIST()
-  const start = daysAgoIST(30)
+export default async function AdsPage({
+  searchParams,
+}: {
+  searchParams?: DashboardSearchParams
+}) {
+  const range = parseDashboardDateRange(searchParams)
+  const rangeLabel = dateRangeLabel(range)
 
   let data
   let error: string | null = null
   try {
-    data = await fetchAdsDashboardData(30)
+    data = await fetchAdsDashboardData(range)
   } catch (e) {
     error = String(e)
     data = null
@@ -32,16 +41,24 @@ export default async function AdsPage() {
 
   return (
     <main className="p-6 space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">Meta Ads</h1>
-        <p className="text-sm text-stone-500 dark:text-night-500 mt-1">
-          Ad performance & attribution · {start} → {end} · ROAS = purchase_value / ad_spend
-        </p>
-        {error && (
-          <p className="mt-2 text-sm text-amber-400">
-            Cube unavailable — charts may be empty. Check CUBE_MCP_URL / SELERIC_API_KEY.
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">Meta Ads</h1>
+          <p className="text-sm text-stone-500 dark:text-night-500 mt-1">
+            Ad performance & attribution · {rangeLabel} · ROAS = purchase_value / ad_spend
           </p>
-        )}
+          {error && (
+            <p className="mt-2 text-sm text-amber-400">
+              Cube unavailable — charts may be empty. Check CUBE_MCP_URL / SELERIC_API_KEY.
+            </p>
+          )}
+        </div>
+        <DateRangeControls
+          start={range.start}
+          end={range.end}
+          spanDays={range.spanDays}
+          searchParams={searchParams}
+        />
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -60,7 +77,7 @@ export default async function AdsPage() {
           />
         </ChartCard>
 
-        <ChartCard title="CPC · CPM · CPA" subtitle="30d vs prior 30d" cube="marketing_performance">
+        <ChartCard title="CPC · CPM · CPA" subtitle={`${range.spanDays}d vs prior ${range.spanDays}d`} cube="marketing_performance">
           <PeriodCompareKpis
             current={currentPeriod}
             prior={priorPeriod}

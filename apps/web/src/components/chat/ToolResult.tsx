@@ -10,6 +10,7 @@ const TOOL_LABELS: Record<string, string> = {
   runQuery: "Data Query",
   runComputedQuery: "Computed Analysis",
   mergeQueryResults: "Cross-cube Join",
+  runPythonAnalysis: "Python Analysis",
   clarify: "Clarifying question",
   exploreSchema: "Schema",
 }

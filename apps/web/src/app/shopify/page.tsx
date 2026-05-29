@@ -8,20 +8,29 @@ import { StackedAreaChart } from "@/components/charts/StackedAreaChart"
 import { StackedBarChart } from "@/components/charts/StackedBarChart"
 import { DataTable } from "@/components/chat/DataTable"
 import { TrendChart } from "@/components/chat/TrendChart"
-import { daysAgoIST, todayIST } from "@/lib/chat/dates"
+import { DateRangeControls } from "@/components/dashboard/DateRangeControls"
 import { geoLabel, skuLabel, utmLabel } from "@/lib/dashboard/page-helpers"
 import { fetchShopifyDashboardData } from "@/lib/dashboard/queries/shopify"
+import {
+  dateRangeLabel,
+  parseDashboardDateRange,
+  type DashboardSearchParams,
+} from "@/lib/dashboard/date-ranges"
 
 export const revalidate = 60
 
-export default async function ShopifyPage() {
-  const end = todayIST()
-  const start = daysAgoIST(30)
+export default async function ShopifyPage({
+  searchParams,
+}: {
+  searchParams?: DashboardSearchParams
+}) {
+  const range = parseDashboardDateRange(searchParams)
+  const rangeLabel = dateRangeLabel(range)
 
   let data
   let error: string | null = null
   try {
-    data = await fetchShopifyDashboardData(30)
+    data = await fetchShopifyDashboardData(range)
   } catch (e) {
     error = String(e)
     data = null
@@ -51,16 +60,24 @@ export default async function ShopifyPage() {
 
   return (
     <main className="p-6 space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-stone-900">Shopify Store</h1>
-        <p className="text-sm text-stone-500 mt-1">
-          Store & product analytics · {start} → {end} · created_at_ist (IST)
-        </p>
-        {error && (
-          <p className="mt-2 text-sm text-amber-400">
-            Cube unavailable — charts may be empty. Check CUBE_MCP_URL / SELERIC_API_KEY.
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-stone-900 dark:text-night-50">Shopify Store</h1>
+          <p className="text-sm text-stone-500 dark:text-night-500 mt-1">
+            Store & product analytics · {rangeLabel} · created_at_ist (IST)
           </p>
-        )}
+          {error && (
+            <p className="mt-2 text-sm text-amber-400">
+              Cube unavailable — charts may be empty. Check CUBE_MCP_URL / SELERIC_API_KEY.
+            </p>
+          )}
+        </div>
+        <DateRangeControls
+          start={range.start}
+          end={range.end}
+          spanDays={range.spanDays}
+          searchParams={searchParams}
+        />
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

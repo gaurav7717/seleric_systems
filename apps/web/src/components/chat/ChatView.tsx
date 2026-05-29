@@ -1,14 +1,12 @@
 "use client"
 
 import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport, isTextUIPart, isToolUIPart, DynamicToolUIPart, type UIMessage } from "ai"
+import { DefaultChatTransport, isTextUIPart, isToolUIPart, type UIMessage } from "ai"
 import { useState, useRef, useEffect } from "react"
-import { ChainOfThought } from "@/components/chat/ChainOfThought"
 import { AssistantMarkdown } from "@/components/chat/AssistantMarkdown"
 import { InsightCanvas } from "@/components/chat/insight/InsightCanvas"
 import { partitionAssistantMessage, type ClarifyPrompt } from "@/lib/chat/partition-message"
 import { isToolRunning } from "@/lib/chat/tool-part"
-import { ToolResult } from "@/components/chat/ToolResult"
 
 const SUGGESTED = [
   "How are we doing today?",
@@ -68,53 +66,34 @@ function AssistantMessage({
   const partitioned = partitionAssistantMessage(msg)
   const narrative = partitioned.narrativeParts.join("\n\n").trim()
   const anyToolRunning = msg.parts.some((p) => isToolRunning(p))
-  const allStepsDone = partitioned.cotSteps.length > 0 && partitioned.cotSteps.every((s) => s.state === "done")
-  const waitingForNarrative = isStreaming && !narrative && allStepsDone
-  // Between tool calls: streaming but no active tool and not all steps done yet (model is deciding next step)
-  const betweenSteps = isStreaming && !anyToolRunning && !waitingForNarrative && partitioned.hasToolActivity && !allStepsDone
-  // Initial thinking: streaming but no tools have started yet
+  const hasData = !!partitioned.mergedData
   const initialThinking = isStreaming && !partitioned.hasToolActivity && !narrative
 
   return (
     <div className="w-full min-w-0">
-      {partitioned.hasToolActivity && (
-        <ChainOfThought steps={partitioned.cotSteps} isActive={isStreaming} />
+      {hasData && <InsightCanvas merged={partitioned.mergedData!} />}
+
+      {narrative && (
+        <>
+          {hasData && (
+            <div className="flex items-center gap-3 mt-5 mb-1">
+              <div className="flex-1 h-px bg-stone-200 dark:bg-night-800" />
+              <span className="text-[10px] font-semibold tracking-widest uppercase text-stone-400 dark:text-night-600 font-sans shrink-0">Analysis</span>
+              <div className="flex-1 h-px bg-stone-200 dark:bg-night-800" />
+            </div>
+          )}
+          <AssistantMarkdown content={narrative} />
+        </>
       )}
-
-      {partitioned.mergedData && <InsightCanvas merged={partitioned.mergedData} />}
-
-      {partitioned.mergedData && !narrative && !isStreaming && (
-        <p className="text-xs text-stone-400 dark:text-night-600 font-sans mt-2 italic">
-          See insights above from compiled data. Add a follow-up for deeper analysis.
-        </p>
-      )}
-
-      {/* Fallback: tools still loading or non-data tools without merged rows */}
-      {!partitioned.mergedData &&
-        msg.parts.map((part, i) => {
-          if (isToolUIPart(part)) {
-            return <ToolResult key={i} part={part as DynamicToolUIPart} renderMode="inline" />
-          }
-          return null
-        })}
-
-      {narrative && <AssistantMarkdown content={narrative} />}
 
       {partitioned.clarifyPrompt && !isStreaming && (
         <ClarifyBubble prompt={partitioned.clarifyPrompt} onSelect={onClarify} />
       )}
 
-      {initialThinking && (
-        <StreamingStatus label="Thinking…" />
-      )}
-      {isStreaming && anyToolRunning && (
-        <StreamingStatus label="Fetching live data from Cube…" />
-      )}
-      {betweenSteps && (
-        <StreamingStatus label="Preparing next query…" />
-      )}
-      {waitingForNarrative && (
-        <StreamingStatus label="Building charts and analysis…" />
+      {initialThinking && <StreamingStatus label="Thinking…" />}
+      {isStreaming && anyToolRunning && <StreamingStatus label="Fetching live data…" />}
+      {isStreaming && !anyToolRunning && partitioned.hasToolActivity && !narrative && (
+        <StreamingStatus label="Building analysis…" />
       )}
     </div>
   )

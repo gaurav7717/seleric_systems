@@ -1,7 +1,11 @@
 import "server-only"
 
 import { runCubeQuery } from "../cube-query"
-import { istDateRange, LAST_30_DAYS, priorIstDateRange } from "../date-ranges"
+import {
+  priorDateRange,
+  toCubeDateRange,
+  type DashboardDateRange,
+} from "../date-ranges"
 
 export interface AdsDashboardData {
   spendRoasDaily: Record<string, unknown>[]
@@ -17,12 +21,11 @@ export interface AdsDashboardData {
   engagementDaily: Record<string, unknown>[]
 }
 
-function td(dim: string, days: number, granularity?: "day") {
-  const dateRange = days === 30 ? LAST_30_DAYS : istDateRange(days)
-  return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange }
+function td(dim: string, range: DashboardDateRange, granularity?: "day") {
+  return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange: toCubeDateRange(range) }
 }
 
-export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData> {
+export async function fetchAdsDashboardData(range: DashboardDateRange): Promise<AdsDashboardData> {
   const [
     spendRoasDaily,
     impressionsClicks,
@@ -43,7 +46,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "marketing_performance.purchase_value",
         "marketing_performance.purchases",
       ],
-      timeDimensions: [td("marketing_performance.date_start", days, "day")],
+      timeDimensions: [td("marketing_performance.date_start", range, "day")],
       order: { "marketing_performance.date_start": "asc" },
     }),
     runCubeQuery({
@@ -53,7 +56,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "marketing_performance.ctr",
         "marketing_performance.cpc",
       ],
-      timeDimensions: [td("marketing_performance.date_start", days, "day")],
+      timeDimensions: [td("marketing_performance.date_start", range, "day")],
       order: { "marketing_performance.date_start": "asc" },
     }),
     runCubeQuery({
@@ -64,7 +67,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "marketing_performance.purchases",
         "marketing_performance.conversion_rate",
       ],
-      timeDimensions: [td("marketing_performance.date_start", days)],
+      timeDimensions: [td("marketing_performance.date_start", range)],
     }),
     runCubeQuery({
       measures: [
@@ -77,7 +80,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
       timeDimensions: [
         {
           dimension: "marketing_performance.date_start",
-          dateRange: days === 30 ? priorIstDateRange(30) : priorIstDateRange(days),
+          dateRange: priorDateRange(range),
         },
       ],
     }),
@@ -90,7 +93,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "marketing_performance.purchases",
         "marketing_performance.cpc",
       ],
-      timeDimensions: [td("marketing_performance.date_start", days)],
+      timeDimensions: [td("marketing_performance.date_start", range)],
       order: { "marketing_performance.roas": "desc" },
       limit: 10,
     }),
@@ -111,7 +114,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "marketing_performance.clicks",
         "marketing_performance.conversion_rate",
       ],
-      timeDimensions: [td("marketing_performance.date_start", days)],
+      timeDimensions: [td("marketing_performance.date_start", range)],
       order: { "marketing_performance.ad_spend": "desc" },
       limit: 50,
     }),
@@ -124,7 +127,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "marketing_performance.initiated_checkouts",
         "marketing_performance.purchases",
       ],
-      timeDimensions: [td("marketing_performance.date_start", days)],
+      timeDimensions: [td("marketing_performance.date_start", range)],
     }),
     runCubeQuery({
       dimensions: ["ad_performance.hourly_window"],
@@ -134,7 +137,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "ad_performance.purchases",
         "ad_performance.impressions",
       ],
-      timeDimensions: [td("ad_performance.date_start", days)],
+      timeDimensions: [td("ad_performance.date_start", range)],
       order: { "ad_performance.hourly_window": "asc" },
     }),
     runCubeQuery({
@@ -146,7 +149,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "dw_meta_ads_attribution.attributed_gross_profit",
         "dw_meta_ads_attribution.roas",
       ],
-      timeDimensions: [td("dw_meta_ads_attribution.date_start", days)],
+      timeDimensions: [td("dw_meta_ads_attribution.date_start", range)],
       order: { "dw_meta_ads_attribution.attributed_revenue": "desc" },
       limit: 15,
     }),
@@ -158,7 +161,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "ad_performance.landing_page_views",
         "ad_performance.add_to_carts",
       ],
-      timeDimensions: [td("ad_performance.date_start", days)],
+      timeDimensions: [td("ad_performance.date_start", range)],
     }),
     runCubeQuery({
       measures: [
@@ -168,7 +171,7 @@ export async function fetchAdsDashboardData(days = 30): Promise<AdsDashboardData
         "ad_performance.landing_page_views",
         "ad_performance.add_to_carts",
       ],
-      timeDimensions: [td("ad_performance.date_start", days, "day")],
+      timeDimensions: [td("ad_performance.date_start", range, "day")],
       order: { "ad_performance.date_start": "asc" },
     }),
   ])

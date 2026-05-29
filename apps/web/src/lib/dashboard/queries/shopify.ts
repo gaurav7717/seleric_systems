@@ -1,7 +1,7 @@
 import "server-only"
 
 import { runCubeQuery } from "../cube-query"
-import { istDateRange, LAST_30_DAYS } from "../date-ranges"
+import { toCubeDateRange, type DashboardDateRange } from "../date-ranges"
 
 export interface ShopifyDashboardData {
   revenueOrdersDaily: Record<string, unknown>[]
@@ -16,9 +16,8 @@ export interface ShopifyDashboardData {
   shippingRevenue: Record<string, unknown>[]
 }
 
-function td(dim: string, days: number, granularity?: "day") {
-  const dateRange = days === 30 ? LAST_30_DAYS : istDateRange(days)
-  return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange }
+function td(dim: string, range: DashboardDateRange, granularity?: "day") {
+  return { dimension: dim, ...(granularity ? { granularity } : {}), dateRange: toCubeDateRange(range) }
 }
 
 async function safeQuery(query: Parameters<typeof runCubeQuery>[0], label: string): Promise<Record<string, unknown>[]> {
@@ -30,7 +29,7 @@ async function safeQuery(query: Parameters<typeof runCubeQuery>[0], label: strin
   }
 }
 
-export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashboardData> {
+export async function fetchShopifyDashboardData(range: DashboardDateRange): Promise<ShopifyDashboardData> {
   const [
     revenueOrdersDaily,
     topProducts,
@@ -49,7 +48,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_orders.net_orders",
         "shopify_orders.aov",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_orders.created_at_ist", range, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
     }, "revenueOrdersDaily"),
     // product_performance + product dimensions = nested aggregate error in Cube.
@@ -57,7 +56,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
     safeQuery({
       dimensions: ["shopify_order_line_items.product_title"],
       measures: ["shopify_order_line_items.total_quantity"],
-      timeDimensions: [td("shopify_order_line_items.created_at_ist", days)],
+      timeDimensions: [td("shopify_order_line_items.created_at_ist", range)],
       order: { "shopify_order_line_items.total_quantity": "desc" },
       limit: 15,
     }, "topProducts"),
@@ -67,7 +66,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_orders.returned_orders",
         "shopify_orders.net_orders",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_orders.created_at_ist", range, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
     }, "returnCancel"),
     safeQuery({
@@ -77,7 +76,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_orders.net_orders",
         "shopify_orders.aov",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days)],
+      timeDimensions: [td("shopify_orders.created_at_ist", range)],
       order: { "shopify_orders.gross_revenue": "desc" },
       limit: 50,
     }, "revenueByGeo"),
@@ -92,7 +91,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_orders.net_orders",
         "shopify_orders.aov",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days)],
+      timeDimensions: [td("shopify_orders.created_at_ist", range)],
       order: { "shopify_orders.gross_revenue": "desc" },
       limit: 30,
     }, "utmBreakdown"),
@@ -103,7 +102,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_order_line_items.avg_unit_price",
         "shopify_order_line_items.avg_discounted_unit_price",
       ],
-      timeDimensions: [td("shopify_order_line_items.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_order_line_items.created_at_ist", range, "day")],
       order: { "shopify_order_line_items.created_at_ist": "asc" },
     }, "discountImpact"),
     safeQuery({
@@ -113,13 +112,13 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_order_line_items.avg_discounted_unit_price",
         "shopify_order_line_items.unique_products",
       ],
-      timeDimensions: [td("shopify_order_line_items.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_order_line_items.created_at_ist", range, "day")],
       order: { "shopify_order_line_items.created_at_ist": "asc" },
     }, "unitsPerOrder"),
     safeQuery({
       dimensions: ["shopify_orders.fulfillment_status"],
       measures: ["shopify_orders.orders", "shopify_orders.gross_revenue"],
-      timeDimensions: [td("shopify_orders.created_at_ist", days)],
+      timeDimensions: [td("shopify_orders.created_at_ist", range)],
       order: { "shopify_orders.orders": "desc" },
     }, "fulfillmentMix"),
     // product_performance + sku/product_title dimensions also hit nested aggregate.
@@ -127,7 +126,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
     safeQuery({
       dimensions: ["shopify_order_line_items.sku", "shopify_order_line_items.product_title"],
       measures: ["shopify_order_line_items.total_quantity"],
-      timeDimensions: [td("shopify_order_line_items.created_at_ist", days)],
+      timeDimensions: [td("shopify_order_line_items.created_at_ist", range)],
       order: { "shopify_order_line_items.total_quantity": "desc" },
       limit: 20,
     }, "marginBySku"),
@@ -137,7 +136,7 @@ export async function fetchShopifyDashboardData(days = 30): Promise<ShopifyDashb
         "shopify_orders.shipping_revenue",
         "shopify_orders.orders_with_shipping",
       ],
-      timeDimensions: [td("shopify_orders.created_at_ist", days, "day")],
+      timeDimensions: [td("shopify_orders.created_at_ist", range, "day")],
       order: { "shopify_orders.created_at_ist": "asc" },
     }, "shippingRevenue"),
   ])

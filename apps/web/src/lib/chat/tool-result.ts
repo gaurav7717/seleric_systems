@@ -16,6 +16,12 @@ export type ChatToolResult = {
   /** clarify tool only */
   question?: string
   options?: string[]
+  /** python sandbox — forces a specific chart kind */
+  chartHint?: string
+  /** python sandbox — named secondary result sets */
+  secondary?: Record<string, unknown>
+  /** python sandbox — stdout-only result */
+  stdout?: string
 }
 
 export async function runTool<T>(fn: () => Promise<ChatToolResult>): Promise<ChatToolResult> {

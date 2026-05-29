@@ -189,10 +189,15 @@ export function generateCompiledInsights(merged: MergedToolData): InsightSection
   return sections
 }
 
+/** The rightmost segment after the last `.`, lowercased — used to deduplicate cross-cube merges. */
+function baseName(key: string): string {
+  return key.split(".").pop()?.toLowerCase() ?? key.toLowerCase()
+}
+
 export function pickTableColumns(rows: CubeRow[]): string[] {
   if (!rows.length) return []
   const all = Object.keys(rows[0]).filter(
-    (k) => !k.endsWith("__label") && !/surrogate|\.id$/i.test(k) && k !== "derived.__missing"
+    (k) => !k.endsWith("__label") && !/surrogate|\.id$/i.test(k) && k !== "derived.__missing" && k !== "chart_hint"
   )
   const priority = (k: string) => {
     if (/report_date|\.month|created_at/i.test(k)) return 0
@@ -206,7 +211,7 @@ export function pickTableColumns(rows: CubeRow[]): string[] {
     return 7
   }
   const sorted = [...all].sort((a, b) => priority(a) - priority(b))
-  const seen = new Set<string>()
+  const seenBase = new Set<string>()
   const out: string[] = []
   let hasDate = false
   for (const k of sorted) {
@@ -216,9 +221,12 @@ export function pickTableColumns(rows: CubeRow[]): string[] {
       if (hasDate) continue
       hasDate = true
     }
-    const role = /revenue|sales/i.test(k) ? "rev" : k
-    if (/revenue|sales/i.test(k) && [...seen].some((s) => /rev/.test(s))) continue
-    seen.add(role)
+    // Deduplicate cross-cube columns by base name (e.g. cube_a.campaign_name vs cube_b.campaign_name)
+    const base = baseName(k)
+    // Revenue/sales dedup: any revenue-ish column counts as the same "rev" slot
+    const dedupeKey = /revenue|sales/i.test(k) ? "rev" : base
+    if (seenBase.has(dedupeKey)) continue
+    seenBase.add(dedupeKey)
     out.push(k)
     if (out.length >= 11) break
   }

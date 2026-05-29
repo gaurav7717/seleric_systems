@@ -148,6 +148,7 @@ export function resolveFallbackModel(primary = resolveChatModel()): ResolvedChat
     if (azurePrimaryDeployment && primary.provider !== "azure") {
       return resolveAzureModel(azurePrimaryDeployment, "fallback")
     }
+    return null
   }
   const openAICompatModelId = getOpenAICompatModelId()
   if (openAICompatModelId && hasOpenAICompatConfig() && primary.provider !== "openai-compat") {
