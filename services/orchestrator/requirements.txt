@@ -21,3 +21,4 @@ pandas>=2.2.0
 numpy>=1.26.0
 scipy>=1.13.0
 RestrictedPython>=7.1
+bullmq>=2.0.0

@@ -52,7 +52,9 @@
       "Bash(pnpm --version)",
       "Bash(docker compose *)",
       "Bash(docker-compose config *)",
-      "Bash(xargs grep -l \"approval\\\\|Approval\")"
+      "Bash(xargs grep -l \"approval\\\\|Approval\")",
+      "Bash(echo \" [exit:$?]\")",
+      "mcp__claude_ai_Seleric__cube_channel_pnl"
     ]
   }
 }

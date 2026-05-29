@@ -35,7 +35,12 @@ def parse_response(
     start: float,
 ) -> AgentResult:
     # LiteLLM returns OpenAI-format responses regardless of provider
-    text = response.choices[0].message.content or ""
+    message = response.choices[0].message
+    text = message.content or ""
+    # Reasoning models (e.g. DeepSeek) may leave content empty and put the
+    # answer in reasoning_content — fall back to it so we can still parse JSON.
+    if not text.strip():
+        text = getattr(message, "reasoning_content", None) or ""
 
     parsed = _extract_json(text)
 

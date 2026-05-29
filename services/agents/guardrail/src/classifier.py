@@ -16,7 +16,7 @@ def _check_hard_blocks(proposal: dict[str, Any], rules: dict[str, Any]) -> dict[
 
     rationale = proposal.get("rationale") or ""
     action_payload = proposal.get("action_payload") or {}
-    budget_delta_pct = abs(float(action_payload.get("budget_delta_pct", 0)))
+    budget_delta_pct = abs(float(action_payload.get("budget_delta_pct") or 0))
 
     if len(rationale.strip()) < 20:
         return {**proposal, "classification": "BLOCK", "guardrail_rule": "no_rationale"}
@@ -34,7 +34,7 @@ def classify_proposal(proposal: dict[str, Any], rules: dict[str, Any]) -> dict[s
         return block
 
     risk = proposal.get("risk_level", "medium").lower()
-    confidence = float(proposal.get("confidence", 0))
+    confidence = float(proposal.get("confidence") or 0)
 
     thresholds = rules.get("thresholds", {})
     auto_min_confidence = float(thresholds.get("auto_min_confidence", 0.85))

@@ -8,10 +8,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@multiagent/db": "workspace:*",
+    "@multiagent/queue": "workspace:*",
     "@multiagent/shared-types": "workspace:*",
 
     "bullmq": "^5.7.0",

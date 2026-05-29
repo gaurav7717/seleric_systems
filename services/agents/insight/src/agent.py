@@ -8,18 +8,22 @@ from datetime import datetime, timezone
 import structlog
 
 from agents.insight.src.parser import parse_response
-from agents.insight.src.tools import get_tool_definitions
 from src.llm.client import chat_completion
 from src.schemas.agent import AgentContext, AgentResult
 
 logger = structlog.get_logger()
 AGENT_NAME = "insight_agent"
-SYSTEM_PROMPT = "You are a business intelligence analyst. Diagnose signals with evidence."
+SYSTEM_PROMPT = (
+    "You are a business intelligence analyst. Diagnose the signal using the evidence provided.\n"
+    "Respond with ONLY a single JSON object (no prose, no markdown fences) of the form:\n"
+    '{"severity": "critical|warning|info", "title": "<=80 char headline", '
+    '"what": "what changed, with numbers", "why": "the likely cause", '
+    '"evidence": ["fact 1", "fact 2"], "confidence": 0.0-1.0}'
+)
 
 
 async def run(context: AgentContext) -> AgentResult:
     start = time.monotonic()
-    tools = get_tool_definitions(context.available_tools)
 
     if os.getenv("AGENT_STUB_MODE", "true").lower() == "true":
         insight = {
@@ -42,9 +46,10 @@ async def run(context: AgentContext) -> AgentResult:
             latency_ms=int((time.monotonic() - start) * 1000),
         )
 
+    # Diagnosis is a single-shot, tools-free step: the model returns a JSON insight
+    # directly. (No tool-call loop exists here, so passing tools left content empty.)
     response = await chat_completion(
         system=SYSTEM_PROMPT,
-        tools=tools or None,
         messages=[{"role": "user", "content": context.assembled_prompt}],
     )
     return parse_response(response, context, [], start)

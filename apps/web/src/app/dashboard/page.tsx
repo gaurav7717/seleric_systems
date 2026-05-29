@@ -7,6 +7,7 @@ import { PnlWaterfallChart } from "@/components/charts/PnlWaterfallChart"
 import { StackedBarChart } from "@/components/charts/StackedBarChart"
 import { TrendChart } from "@/components/chat/TrendChart"
 import { DateRangeControls } from "@/components/dashboard/DateRangeControls"
+import { AgentActivityPanel } from "@/components/dashboard/AgentActivityPanel"
 import {
   CHANNEL_NET_PROFIT_SERIES,
   channelRevenueSlices,
@@ -63,6 +64,8 @@ export default async function DashboardPage({
           searchParams={searchParams}
         />
       </header>
+
+      <AgentActivityPanel />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <ChartCard title="P&L KPI strip" subtitle="Today vs yesterday (IST)" cube="daily_pnl" className="xl:col-span-2">
