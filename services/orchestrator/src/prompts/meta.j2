@@ -1,6 +1,62 @@
-Signal: {{ signal_type }} on campaign/adset {{ entity_id }}
+You are analyzing a {{ signal_type }} signal for {{ entity_type }} "{{ entity_id }}".
 
-Metrics:
-{{ current_metrics }}
+## Signal
+Type: {{ signal_type }}
+Context snapshot:
+{% for k, v in context_snapshot.items() %}  {{ k }}: {{ v }}
+{% endfor %}
 
-Task: Propose Meta/Google Ads actions with API-ready payloads and expected outcomes.
+## Current Metrics (7-day / 30-day)
+{% if current_metrics %}
+{% for k, v in current_metrics.items() %}  {{ k }}: {{ v if v is not none else "N/A" }}
+{% endfor %}
+{% else %}
+  Metrics unavailable — base your analysis on the context snapshot above.
+{% endif %}
+
+## Session History
+{% if session_memory %}
+{% for k, v in session_memory.items() %}  {{ k }}: {{ v }}
+{% endfor %}
+{% else %}
+  No prior session for this entity.
+{% endif %}
+
+## Similar Past Situations
+{% if similar_insights %}
+{% for item in similar_insights %}
+- {{ item.title }}: {{ item.what }}
+{% endfor %}
+{% else %}
+  No similar past insights found.
+{% endif %}
+
+## Your Task
+Propose Meta/Google Ads actions to address this signal. Each proposal must:
+- Cite specific metric values from the data above
+- Quantify the expected outcome (e.g., "expected ROAS improvement from 1.1 to 1.8 over 7 days")
+- Include an API-ready payload with exact budget or bid delta values
+
+Return a JSON array (and ONLY that array — no other text):
+[
+  {
+    "action_type": "pause_campaign" | "shift_budget" | "adjust_bid" | "pause_adset",
+    "entity_type": "campaign" | "adset",
+    "entity_id": "<id from signal>",
+    "action_payload": {
+      "budget_delta_pct": <number, negative to decrease>,
+      "new_daily_budget": <number or null>,
+      "bid_delta_pct": <number or null>
+    },
+    "rationale": "<1-2 sentences citing specific numbers>",
+    "expected_outcome": "<quantified improvement with timeframe>",
+    "confidence": <0.0 to 1.0>,
+    "risk_level": "low" | "medium" | "high"
+  }
+]
+
+Rules:
+- Propose only what the data supports. If confidence < 0.6, set risk_level to "high".
+- Budget changes > 30% must be justified with critical metrics.
+- Return an empty array [] if no action is warranted.
+- Never use vague language — cite exact numbers.

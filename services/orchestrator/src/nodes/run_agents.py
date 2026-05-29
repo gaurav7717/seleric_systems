@@ -45,6 +45,7 @@ async def node_run_agents(state: OrchestratorState) -> dict:
         entity_id=state["entity_id"],
         signal_type=state["signal_type"],
         assembled_prompt=state.get("assembled_prompt") or "",
+        context_snapshot=state.get("context_snapshot") or {},
         current_metrics=state.get("current_metrics") or {},
         session_memory=state.get("session_memory"),
         similar_insights=state.get("similar_insights"),

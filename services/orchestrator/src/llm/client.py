@@ -1,9 +1,10 @@
 """Provider-agnostic LLM + embedding client backed by LiteLLM.
 
-Model selection priority:
-  1. ORCHESTRATOR_MODEL env var  (e.g. kimi-k2.6:cloud for Ollama Cloud)
-  2. LLM_MODEL env var           (e.g. gpt-4o, claude-sonnet-4-20250514)
-  3. Built-in default            claude-sonnet-4-20250514
+Model selection (checked in order — first non-empty value wins):
+  1. ORCHESTRATOR_MODEL   e.g. kimi-k2.6:cloud, openai/gpt-4o
+  2. LLM_MODEL            any LiteLLM model string
+
+At least one must be set; the service raises at startup if both are absent.
 
 Custom OpenAI-compatible endpoints (Ollama, vLLM, etc.):
   Set OLLAMA_CLOUD_URL (api_base) and OLLAMA_CLOUD_API_KEY.
@@ -24,13 +25,18 @@ litellm.drop_params = True  # silently drop unsupported params per provider
 _KNOWN_PREFIXES = ("openai/", "claude", "gpt", "gemini/", "azure/", "anthropic/", "ollama/")
 
 
+def _resolve_model() -> str:
+    model = os.getenv("ORCHESTRATOR_MODEL") or os.getenv("LLM_MODEL")
+    if not model:
+        raise RuntimeError(
+            "No LLM model configured. Set ORCHESTRATOR_MODEL or LLM_MODEL in your environment."
+        )
+    return model
+
+
 def _model_kwargs() -> dict:
     """Build model + optional api_base / api_key kwargs."""
-    model = (
-        os.getenv("ORCHESTRATOR_MODEL")
-        or os.getenv("LLM_MODEL")
-        or "claude-sonnet-4-20250514"
-    )
+    model = _resolve_model()
     api_base: Optional[str] = os.getenv("OLLAMA_CLOUD_URL") or None
     api_key: Optional[str] = os.getenv("OLLAMA_CLOUD_API_KEY") or None
 

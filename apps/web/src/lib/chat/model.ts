@@ -3,9 +3,6 @@ import { createAzure } from "@ai-sdk/azure"
 import { wrapLanguageModel, defaultSettingsMiddleware } from "ai"
 import type { LanguageModel } from "ai"
 
-const DEFAULT_AZURE_DEPLOYMENT = "Kimi-K2.6"
-const DEFAULT_OPENAI_COMPAT_MODEL = "gpt-4o-mini"
-
 export type ChatProvider = "azure" | "openai-compat"
 
 export type ChatModelRole = "primary" | "fallback" | "data" | "analysis"
@@ -22,7 +19,7 @@ function hasAzureConfig() {
 }
 
 function getOpenAICompatModelId() {
-  return process.env.ORCHESTRATOR_MODEL ?? process.env.LLM_MODEL ?? (process.env.OPENAI_API_KEY ? DEFAULT_OPENAI_COMPAT_MODEL : null)
+  return process.env.ORCHESTRATOR_MODEL ?? process.env.LLM_MODEL ?? null
 }
 
 function hasOpenAICompatConfig() {
@@ -51,13 +48,18 @@ function resolveOpenAICompatModel(modelId: string, role: ChatModelRole): Resolve
 
 export function resolveChatModel(): ResolvedChatModel {
   if (hasAzureConfig()) {
-    return resolveAzureModel(process.env.AZURE_ORCHESTRATOR_DEPLOYMENT ?? DEFAULT_AZURE_DEPLOYMENT, "primary")
+    const deployment = process.env.AZURE_ORCHESTRATOR_DEPLOYMENT
+    if (!deployment) throw new Error("AZURE_OPENAI_API_KEY is set but AZURE_ORCHESTRATOR_DEPLOYMENT is missing.")
+    return resolveAzureModel(deployment, "primary")
   }
   const openAICompatModelId = getOpenAICompatModelId()
   if (openAICompatModelId && hasOpenAICompatConfig()) {
     return resolveOpenAICompatModel(openAICompatModelId, "primary")
   }
-  return resolveOpenAICompatModel(openAICompatModelId ?? DEFAULT_OPENAI_COMPAT_MODEL, "primary")
+  throw new Error(
+    "No LLM provider configured. Set AZURE_OPENAI_API_KEY + AZURE_ORCHESTRATOR_DEPLOYMENT, " +
+    "or ORCHESTRATOR_MODEL / LLM_MODEL with an API key."
+  )
 }
 
 /**

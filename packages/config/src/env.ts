@@ -5,7 +5,6 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().or(z.string().startsWith("postgresql://")),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-20250514"),
   WRITE_ENABLED: z
     .string()
     .optional()

@@ -11,6 +11,7 @@ class AgentContext(BaseModel):
     entity_id: str
     signal_type: str
     assembled_prompt: str
+    context_snapshot: dict[str, Any] = Field(default_factory=dict)
     current_metrics: dict[str, Any] = Field(default_factory=dict)
     session_memory: Optional[dict[str, Any]] = None
     similar_insights: Optional[list[dict[str, Any]]] = None

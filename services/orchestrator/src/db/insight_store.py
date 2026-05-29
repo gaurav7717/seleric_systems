@@ -5,6 +5,7 @@ Enum values must be uppercased to match Prisma-generated Postgres enums.
 """
 
 import json
+import uuid
 from typing import Any
 
 import asyncpg
@@ -81,3 +82,49 @@ async def save_insight(
         )
     logger.debug("insight_saved", insight_id=insight_id, signal_id=signal_id)
     return insight_id
+
+
+_RISK_MAP = {"low": "LOW", "medium": "MEDIUM", "high": "HIGH"}
+_CLASS_MAP = {"AUTO": "AUTO", "QUEUE": "QUEUE", "BLOCK": "BLOCK"}
+
+
+async def save_pending_action(
+    pool: asyncpg.Pool,
+    action: dict[str, Any],
+    signal_id: str,
+) -> str:
+    """Insert a guardrail-classified proposal into PendingAction. Returns the action id."""
+    action_id = action.get("proposal_id") or str(uuid.uuid4())
+    risk = _RISK_MAP.get(action.get("risk_level", "medium").lower(), "MEDIUM")
+    classification = _CLASS_MAP.get(action.get("classification", "QUEUE"), "QUEUE")
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO "PendingAction" (
+              id, "signalId", agent, "actionType", "actionPayload",
+              rationale, "expectedOutcome", confidence,
+              "riskLevel", classification, status,
+              "guardrailRule", "expiresAt", "createdAt", "updatedAt"
+            ) VALUES (
+              $1, $2, $3, $4, $5::jsonb,
+              $6, $7, $8,
+              $9::"RiskLevel", $10::"ActionClass", 'PENDING'::"ActionStatus",
+              $11, NOW() + INTERVAL '48 hours', NOW(), NOW()
+            )
+            ON CONFLICT (id) DO NOTHING
+            """,
+            action_id,
+            signal_id,
+            action.get("agent", "unknown"),
+            action.get("action_type", ""),
+            json.dumps(action.get("action_payload", {})),
+            action.get("rationale", ""),
+            action.get("expected_outcome", ""),
+            float(action.get("confidence", 0.5)),
+            risk,
+            classification,
+            action.get("guardrail_rule"),
+        )
+    logger.debug("pending_action_saved", action_id=action_id, classification=classification)
+    return action_id

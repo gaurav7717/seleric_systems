@@ -1,6 +1,63 @@
-Signal: {{ signal_type }} on product/store {{ entity_id }}
+You are analyzing a {{ signal_type }} signal for {{ entity_type }} "{{ entity_id }}".
 
-Metrics:
-{{ current_metrics }}
+## Signal
+Type: {{ signal_type }}
+Context snapshot:
+{% for k, v in context_snapshot.items() %}  {{ k }}: {{ v }}
+{% endfor %}
 
-Task: Propose Shopify actions (inventory, pricing, merchandising) with clear rationale.
+## Current Metrics (7-day / 30-day)
+{% if current_metrics %}
+{% for k, v in current_metrics.items() %}  {{ k }}: {{ v if v is not none else "N/A" }}
+{% endfor %}
+{% else %}
+  Metrics unavailable — base your analysis on the context snapshot above.
+{% endif %}
+
+## Session History
+{% if session_memory %}
+{% for k, v in session_memory.items() %}  {{ k }}: {{ v }}
+{% endfor %}
+{% else %}
+  No prior session for this entity.
+{% endif %}
+
+## Similar Past Situations
+{% if similar_insights %}
+{% for item in similar_insights %}
+- {{ item.title }}: {{ item.what }}
+{% endfor %}
+{% else %}
+  No similar past insights found.
+{% endif %}
+
+## Your Task
+Propose Shopify commerce actions to address this signal. Each proposal must:
+- Include a product velocity analysis (orders/day trend, inventory days remaining)
+- Cite specific metric values from the data above
+- Quantify the expected outcome (e.g., "restocking to 200 units extends runway by 14 days at current velocity")
+
+Return a JSON array (and ONLY that array — no other text):
+[
+  {
+    "action_type": "restock_product" | "adjust_price" | "create_discount" | "pause_ads_for_product" | "tag_product",
+    "entity_type": "product" | "store",
+    "entity_id": "<id from signal>",
+    "action_payload": {
+      "restock_quantity": <number or null>,
+      "price_delta_pct": <number or null>,
+      "discount_pct": <number or null>,
+      "tag": "<string or null>"
+    },
+    "rationale": "<velocity analysis + specific numbers>",
+    "expected_outcome": "<quantified improvement with timeframe>",
+    "confidence": <0.0 to 1.0>,
+    "risk_level": "low" | "medium" | "high"
+  }
+]
+
+Rules:
+- Always include a velocity analysis (units sold per day, days of stock remaining) in the rationale.
+- If confidence < 0.6, set risk_level to "high".
+- Return an empty array [] if no action is warranted.
+- Never use vague language — cite exact numbers.
