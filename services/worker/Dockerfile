@@ -2,6 +2,8 @@ FROM node:20-slim
 
 WORKDIR /app
 
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 RUN corepack enable && corepack prepare pnpm@9.1.0 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./

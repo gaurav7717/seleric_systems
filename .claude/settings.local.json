@@ -49,7 +49,10 @@
       "PowerShell(Get-ChildItem \"node_modules\\\\@ai-sdk\\\\react\" -Recurse | Select-Object FullName | Where-Object { $_.FullName -match \"d\\\\.ts\" } | Select-Object -First 3)",
       "Bash(Get-ChildItem *)",
       "Bash(xargs wc -l)",
-      "Bash(pnpm --version)"
+      "Bash(pnpm --version)",
+      "Bash(docker compose *)",
+      "Bash(docker-compose config *)",
+      "Bash(xargs grep -l \"approval\\\\|Approval\")"
     ]
   }
 }
